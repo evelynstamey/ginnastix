@@ -1,22 +1,4 @@
 DATASETS = {
-    "skill_evaluation": {
-        "spreadsheet_id": "1aCRvFMe0yqSaApGsuWnCl95J0YFSzpqYQEV5MRNqqjo",
-        "sheet_range": "Raw",
-        "columns_index": 1,
-        "data_index": 2,
-        "schema": {
-            "Period": {"index": 0},
-            "Event": {"index": 1},
-            "Skill": {"index": 2},
-            "Variant": {"index": 3, "is_nullable": True},
-            "Athlete": {"index": 4},
-            "Score": {"index": 5, "dtype": "int"},
-            "Skill ID": {"index": 6},
-            "Event Skill ID": {"index": 7},
-            "Level": {"index": 8},
-            "Status": {"index": 9},
-        },
-    },
     "periods": {
         "spreadsheet_id": "1ir39WGL9GD35PHEbntNIjlxPswx6H9AtYwm5r0EETLA",
         "sheet_range": "Periods",
@@ -65,9 +47,9 @@ DATASETS = {
             "Season": {"index": 2},
         },
     },
-    "experiment": {
+    "skill_evaluation": {
         "spreadsheet_id": "1ir39WGL9GD35PHEbntNIjlxPswx6H9AtYwm5r0EETLA",
-        "sheet_range": "Experiment",
+        "sheet_range": "Skill Evaluation",
         "schema": {
             "Period": {"index": 0},
             "Event": {"index": 1},

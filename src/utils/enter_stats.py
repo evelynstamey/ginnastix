@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 import sys
+from functools import cached_property
 from functools import reduce
 
 import pandas as pd
@@ -11,221 +12,261 @@ from utils.google_sheets import authenticate
 from utils.google_sheets import read_dataset
 
 
-def read_reference_datasets(source):
-    datasets = ["periods", "levels", "events", "skills", "student_levels"]
-    creds = authenticate()
-    dfs = []
-    for name in datasets:
-        _df = _read_reference_dataset(source, name, creds)
-        dfs.append(_df)
-    return tuple(dfs)
+class SkillEvaluation:
+    _credentials = None
+    _data_dir = "data"
 
+    def __init__(self, reference_dataset_source):
+        self._source = reference_dataset_source
 
-def _read_reference_dataset(source, name, creds):
-    file_name = f"{name}.pkl"
-    if source == "local":
-        print(f"Loading local dataset from file: {file_name}")
-        try:
-            with open(file_name, "rb") as f:
-                df = pickle.load(f)
-                return df
-        except Exception as e:
-            print(f"Failed to load local dataset from file: {e}")
+        self.df_periods = self.read_reference_dataset("periods")
+        self.df_levels = self.read_reference_dataset("levels")
+        self.df_events = self.read_reference_dataset("events")
+        self.df_skills = self.read_reference_dataset("skills")
+        self.df_student_levels = self.read_reference_dataset("student_levels")
 
-    print(f"Reading dataset from Google Sheets: {name}")
-    df = read_dataset(dataset_name=name, credentials=creds)
-    with open(file_name, "wb") as f:
-        pickle.dump(df, f)
-    return df
+    @property
+    def credentials(self):
+        if not self._credentials or not self._credentials.valid:
+            self._credentials = authenticate()
+        return self._credentials
 
+    @property
+    def bool_options(self):
+        return {0: "no", 1: "yes"}
 
-def process_user_inputs(df_periods, df_levels, df_events, df_skills, df_student_levels):
-    # period
-    options = df_periods["Period"].to_dict()
-    options_text = "\n".join(f"  [{idx + 1}]: {val}" for idx, val in options.items())
-    x = input(f"\nEnter your evaluation period:\n{options_text}\n\n>>> ")
-    period = options[int(x) - 1]
+    @cached_property
+    def out_file(self):
+        return os.path.join(self._data_dir, "output.csv")
 
-    # students
-    level, level_desc = process_user_input(
-        df=df_levels,
-        attr="Level",
-        attr_desc="Level Description",
-        prompt="Enter your student level",
-    )
-    students = sorted(
-        df_student_levels[df_student_levels["Level"] == level]["Name"].to_list()
-    )
-    print(
-        f"\nYou selected {len(students)} students from the {level_desc.title()} team: {json.dumps(students)}"
-    )
-    options = {0: "no", 1: "yes"}
-    options_text = "\n".join(f"  [{idx + 1}]: {val}" for idx, val in options.items())
-    x = input(f"\nWould you like to add any other students?\n{options_text}\n\n>>> ")
-    if options[int(x) - 1] == "yes":
-        options = (
-            df_student_levels[~df_student_levels["Name"].isin(students)]["Name"]
-            .reset_index(drop=True)
-            .to_dict()
+    @cached_property
+    def evaluation_period(self):
+        options = self.df_periods["Period"].to_dict()
+        return self.get_input("Enter your evaluation period", options)
+
+    @cached_property
+    def students(self):
+        # Get initial list of students
+        level, level_desc = self.get_input_from_df(
+            df=self.df_levels,
+            attr="Level",
+            attr_desc="Level Description",
+            prompt="Enter your student level",
         )
-        options_text = "\n".join(
-            f"  [{idx + 1}]: {val}" for idx, val in options.items()
-        )
-        x = input(f"\nWhich students would you like to add?\n{options_text}\n\n>>> ")
-        names = [options[int(i) - 1] for i in x.split(",")]
-        students.extend(names)
+        all_students = self.df_student_levels["Name"].to_list()
+        students = self.df_student_levels[self.df_student_levels["Level"] == level][
+            "Name"
+        ].to_list()
         students = sorted(list(set(students)))
-    print(
-        f"\nYou selected {len(students)} students from the {level_desc.title()} team: {json.dumps(students)}"
-    )
-    options = {0: "no", 1: "yes"}
-    options_text = "\n".join(f"  [{idx + 1}]: {val}" for idx, val in options.items())
-    x = input(f"\nWould you like to remove any students?\n{options_text}\n\n>>> ")
-    if options[int(x) - 1] == "yes":
-        options = (
-            df_student_levels[df_student_levels["Name"].isin(students)]["Name"]
-            .reset_index(drop=True)
-            .to_dict()
-        )
-        options_text = "\n".join(
-            f"  [{idx + 1}]: {val}" for idx, val in options.items()
-        )
-        x = input(f"\nWhich students would you like to remove?\n{options_text}\n\n>>> ")
-        names = [options[int(i) - 1] for i in x.split(",")]
-        students = [x for x in students if x not in names]
-        students = sorted(list(set(students)))
-    print(
-        f"\nYou selected {len(students)} students from the {level_desc.title()} team: {json.dumps(students)}"
-    )
-
-    continue_data_entry = True
-    while continue_data_entry:
-        # event
-        event, event_desc = process_user_input(
-            df=df_events,
-            attr="Event",
-            attr_desc="Event Description",
-            prompt="Enter your event",
+        print(
+            f"\nYou selected {len(students)} students from the {level_desc.title()} team: "
+            f"{json.dumps(students)}"
         )
 
-        # skill
-        event_skill, event_skill_desc = process_user_input(
-            df=df_skills,
-            attr="Skill",
-            attr_desc="Skill Description",
-            select_values={"Event": event},
-            prompt=f"Enter your {event_desc} skill",
+        # Optionally add students
+        _input = self.get_input(
+            "Would you like to add any other students?", self.bool_options
         )
-
-        # skill variant
-        event_skill_variant, event_skill_variant_desc = process_user_input(
-            df=df_skills,
-            attr="Variant",
-            attr_desc="Variant Description",
-            select_values={"Event": event, "Skill": event_skill},
-            prompt=f"Enter your skill variant for {event_skill_desc}",
-        )
-
-        # get stats
-        full_skill_description = (
-            f"{event_skill_desc} ({event_skill_variant_desc})"
-            if event_skill_variant_desc
-            else event_skill_desc
-        )
-        print(f"Enter your skill scores for {full_skill_description}")
-        for student in students:
-            x = input(f"{student} >>> ")
-            if x not in ["0", "1", "2", "3", "4", "5"]:
-                print("Skipping student")
-                continue
-            skill_info = df_skills[
-                (df_skills["Skill"] == event_skill)
-                & (df_skills["Variant"] == event_skill_variant)
-            ]
-            skill_id = skill_info["Skill ID"].values[0]
-            event_skill_id = skill_info["Event Skill ID"].values[0]
-            status = skill_info[level].values[0]
-            row = [
-                period,
-                event,
-                event_skill,
-                event_skill_variant,
-                student,
-                x,
-                skill_id,
-                event_skill_id,
-                level,
-                status,
-            ]
-            with open("output.csv", "a") as file:
-                file.write(",".join(row) + "\n")
-
-        options = {0: "no", 1: "yes"}
-        options_text = "\n".join(
-            f"  [{idx + 1}]: {val}" for idx, val in options.items()
-        )
-        x = input(f"\nWould you like to add other skill?\n{options_text}\n\n>>> ")
-        if options[int(x) - 1] == "no":
-            df_batch = pd.read_csv(
-                "output.csv",
-                header=None,
-                names=[
-                    "Period",
-                    "Event",
-                    "Skill",
-                    "Variant",
-                    "Athlete",
-                    "Score",
-                    "Skill ID",
-                    "Event Skill ID",
-                    "Level",
-                    "Status",
-                ],
+        if _input == "yes":
+            options = {
+                idx: val for idx, val in enumerate(all_students) if val not in students
+            }
+            names = self.get_input(
+                "Which students would you like to add?", options, multi=True
             )
-            append_dataset_rows(dataset_name="experiment", df=df_batch)
-            continue_data_entry = False
-    if os.path.exists("output.csv"):
-        os.remove("output.csv")
+            students.extend(names)
+            students = sorted(list(set(students)))
+            print(
+                f"\nYou selected {len(students)} students from the {level_desc.title()} team: "
+                f"{json.dumps(students)}"
+            )
 
-
-def process_user_input(df, attr, attr_desc, prompt, select_values=None):
-    if select_values:
-        conditions = [df[col] == val for col, val in select_values.items()]
-        conditions.append(df[attr] != "")
-        select_condition = reduce(lambda c1, c2: c1 & c2, conditions[1:], conditions[0])
-        df_options = (
-            df[select_condition][[attr, attr_desc]]
-            .drop_duplicates()
-            .reset_index(drop=True)
+        # Optionally remove students
+        _input = self.get_input(
+            "Would you like to remove any students?", self.bool_options
         )
-    else:
-        df_options = df[[attr, attr_desc]].drop_duplicates().reset_index(drop=True)
+        if _input == "yes":
+            options = {idx: val for idx, val in enumerate(students)}
+            names = self.get_input(
+                "Which students would you like to remove?", options, multi=True
+            )
+            students = [x for x in students if x not in names]
+            students = sorted(list(set(students)))
+            print(
+                f"\nYou selected {len(students)} students from the {level_desc.title()} team: "
+                f"{json.dumps(students)}"
+            )
 
-    df_options["display"] = df_options[attr] + " - " + df_options[attr_desc]
-    options = df_options["display"].to_dict()
-    value = ""
-    value_desc = ""
-    if options:
+        return students
+
+    def read_reference_dataset(self, name):
+        file_name = os.path.join(self._data_dir, f"{name}.pkl")
+        if self._source == "local":
+            print(f"Loading local dataset from file: {file_name}")
+            try:
+                with open(file_name, "rb") as f:
+                    df = pickle.load(f)
+                    return df
+            except Exception as e:
+                print(f"Failed to load local dataset from file: {e}")
+
+        print(f"Reading dataset from Google Sheets: {name}")
+        df = read_dataset(dataset_name=name, credentials=self.credentials)
+        with open(file_name, "wb") as f:
+            pickle.dump(df, f)
+        return df
+
+    def add(self):
+        _evaluation_period = self.evaluation_period
+        _students = self.students
+
+        continue_data_entry = True
+        while continue_data_entry:
+            # event
+            _event, _event_desc = self.get_input_from_df(
+                df=self.df_events,
+                attr="Event",
+                attr_desc="Event Description",
+                prompt="Enter your event",
+            )
+
+            # skill
+            _event_skill, _event_skill_desc = self.get_input_from_df(
+                df=self.df_skills,
+                attr="Skill",
+                attr_desc="Skill Description",
+                select_values={"Event": _event},
+                prompt=f"Enter your {_event_desc} skill",
+            )
+
+            # skill variant
+            _event_skill_variant, _event_skill_variant_desc = self.get_input_from_df(
+                df=self.df_skills,
+                attr="Variant",
+                attr_desc="Variant Description",
+                select_values={"Event": _event, "Skill": _event_skill},
+                prompt=f"Enter your skill variant for {_event_skill_desc}",
+            )
+
+            # get stats
+            full_skill_description = (
+                f"{_event_skill_desc} ({_event_skill_variant_desc})"
+                if _event_skill_variant_desc
+                else _event_skill_desc
+            )
+            print(f"Enter your skill scores for {full_skill_description}")
+            for _student in _students:
+                # Get score (if given)
+                _score = input(f"{_student} >>> ")
+                if _score not in ["0", "1", "2", "3", "4", "5"]:
+                    print("Skipping student")
+                    continue
+
+                # Get dimensional attributes
+                student_info = self.df_student_levels[
+                    self.df_student_levels["Name"] == _student
+                ]
+                _level = student_info["Level"].values[0]
+                skill_info = self.df_skills[
+                    (self.df_skills["Skill"] == _event_skill)
+                    & (self.df_skills["Variant"] == _event_skill_variant)
+                ]
+                _skill_id = skill_info["Skill ID"].values[0]
+                _event_skill_id = skill_info["Event Skill ID"].values[0]
+                _status = skill_info[_level].values[0]
+                row = [
+                    _evaluation_period,
+                    _event,
+                    _event_skill,
+                    _event_skill_variant,
+                    _student,
+                    _score,
+                    _skill_id,
+                    _event_skill_id,
+                    _level,
+                    _status,
+                ]
+
+                # Incrementally store row
+                with open(self.out_file, "a") as file:
+                    file.write(",".join(row) + "\n")
+
+            _input = self.get_input(
+                "Would you like to add other skill?", self.bool_options
+            )
+
+            if _input == "no":  # Write batch and break out of loop
+                df_batch = pd.read_csv(
+                    self.out_file,
+                    header=None,
+                    names=[
+                        "Period",
+                        "Event",
+                        "Skill",
+                        "Variant",
+                        "Athlete",
+                        "Score",
+                        "Skill ID",
+                        "Event Skill ID",
+                        "Level",
+                        "Status",
+                    ],
+                )
+                append_dataset_rows(dataset_name="skill_evaluation", df=df_batch)
+                continue_data_entry = False
+
+        # Clean up staging file
+        if os.path.exists(self.out_file):
+            os.remove(self.out_file)
+
+    def get_options_df(self, df, attr, attr_desc=None, select_values=None):
+        _df = df.copy()
+
+        conditions = [_df[attr] != ""]
+        if select_values:
+            conditions.extend([_df[col] == val for col, val in select_values.items()])
+        select_condition = reduce(lambda c1, c2: c1 & c2, conditions[1:], conditions[0])
+
+        _cols = [attr, attr_desc] if attr_desc else [attr]
+        _df = _df[select_condition][_cols].drop_duplicates().reset_index(drop=True)
+        if attr_desc:
+            _df["options"] = _df[attr] + " - " + _df[attr_desc]
+        else:
+            _df["options"] = _df[attr]
+
+        return _df
+
+    def get_input_from_df(self, prompt, df, attr, attr_desc=None, select_values=None):
+        df_options = self.get_options_df(df, attr, attr_desc, select_values)
+        options = df_options["options"].to_dict()
+        value = ""
+        value_desc = ""
+        if options:
+            _input = self.get_input(prompt, options)
+            df_selected_option = df_options[df_options["options"] == _input]
+            value = df_selected_option[attr].values[0]
+            if attr_desc:
+                value_desc = df_selected_option[attr_desc].values[0]
+        return value, value_desc
+
+    def get_input(self, prompt, options, multi=False):
         options_text = "\n".join(
             f"  [{idx + 1}]: {val}" for idx, val in options.items()
         )
-        x = input(f"\n{prompt}:\n{options_text}\n\n>>> ")
-        value = df_options[df_options["display"] == options[int(x) - 1]][attr].values[0]
-        value_desc = df_options[df_options["display"] == options[int(x) - 1]][
-            attr_desc
-        ].values[0]
-    return value, value_desc
+        x = input(f"\n{prompt}\n{options_text}\n\n>>> ")
+        if multi:
+            return [options[int(i) - 1] for i in x.split(",")]
+        else:
+            return options[int(x) - 1]
 
 
 if __name__ == "__main__":
-    source = "local"
+    reference_dataset_source = "local"
     try:
         if sys.argv[1] == "--clear-cache":
-            source = "gsheets"
+            reference_dataset_source = "gsheets"
     except Exception:
         pass
 
-    df_periods, df_levels, df_events, df_skills, df_student_levels = (
-        read_reference_datasets(source)
-    )
-    process_user_inputs(df_periods, df_levels, df_events, df_skills, df_student_levels)
+    se = SkillEvaluation(reference_dataset_source)
+    se.add()
