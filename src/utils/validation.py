@@ -2,6 +2,13 @@ import json
 
 
 def validate_dataset(df, schema):
+    df = df.astype(
+        {
+            k: attr.get("dtype", "object")
+            for k, attr in schema.items()
+            if k in df.columns
+        }
+    )
     errors = dict()
     for name, spec in schema.items():
         # Check if column exists
@@ -18,7 +25,7 @@ def validate_dataset(df, schema):
             errors[name] = errors.get(name, []) + [message]
 
         # Check column datatype
-        dtype = spec["dtype"]
+        dtype = spec.get("dtype", "object")
         _dtype = df.dtypes.loc[name]
         if dtype != _dtype:
             message = f"Incorrect data type for column '{name}': Expected {dtype}, Observed {_dtype}"

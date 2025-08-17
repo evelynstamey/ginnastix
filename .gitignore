@@ -160,5 +160,9 @@ cython_debug/
 #.idea/
 
 
-credentials.json
-token.json
+*credentials.json
+*token.json
+*events.pkl
+*levels.pkl
+*periods.pkl
+*skills.pkl

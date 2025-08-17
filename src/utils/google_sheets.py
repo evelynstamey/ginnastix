@@ -100,17 +100,18 @@ def read_dataset(dataset_name, credentials=None):
         sheet_range=dataset_cfg["sheet_range"],
     )
     df = pd.DataFrame(
-        data_result["values"][dataset_cfg["data_index"] :],
-        columns=data_result["values"][dataset_cfg["columns_index"]],
+        data_result["values"][dataset_cfg.get("data_index", 1) :],
+        columns=data_result["values"][dataset_cfg.get("columns_index", 0)],
     )
-    df = df.astype({k: attr["dtype"] for k, attr in dataset_cfg["schema"].items()})
     validate_dataset(df, dataset_cfg["schema"])
     return df
 
 
 def append_dataset_rows(dataset_name, df, credentials=None):
     dataset_cfg = _get_dataset_config(dataset_name)
+    df = df.fillna("")
     validate_dataset(df, dataset_cfg["schema"])
+    print(df.head())
     credentials = credentials or authenticate()
     sheet = get_sheet(credentials)
     result = (
