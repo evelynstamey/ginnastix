@@ -111,7 +111,11 @@ def append_dataset_rows(dataset_name, df, credentials=None):
     dataset_cfg = _get_dataset_config(dataset_name)
     df = df.fillna("")
     validate_dataset(df, dataset_cfg["schema"])
+    print(f"Writing data batch to Google Sheets (n={df.shape[0]})")
+    print("\n----------  data sample  ----------\n")
     print(df.head())
+    print("...")
+    print("\n----------  data sample  ----------\n")
     credentials = credentials or authenticate()
     sheet = get_sheet(credentials)
     result = (

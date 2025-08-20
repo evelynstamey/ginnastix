@@ -40,4 +40,4 @@ def validate_dataset(df, schema):
 
     if errors:
         message = json.dumps(errors, indent=2)
-        raise Exception(f"Schema validation failed:\n{message}\n")
+        raise Exception(f"Schema validation failed:\n{message}\n\n{df.head()}")

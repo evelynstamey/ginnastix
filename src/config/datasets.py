@@ -38,11 +38,21 @@ DATASETS = {
             "XG": {"index": 9},
         },
     },
+    "students": {
+        "spreadsheet_id": "1ir39WGL9GD35PHEbntNIjlxPswx6H9AtYwm5r0EETLA",
+        "sheet_range": "Students",
+        "schema": {
+            "Student": {"index": 0},
+            "DOB": {"index": 1},
+            "Current Age": {"index": 2, "dtype": "float"},
+            "Is Active": {"index": 3},  # TODO: handle boolean types
+        },
+    },
     "student_levels": {
         "spreadsheet_id": "1ir39WGL9GD35PHEbntNIjlxPswx6H9AtYwm5r0EETLA",
         "sheet_range": "Student Levels",
         "schema": {
-            "Name": {"index": 0},
+            "Student": {"index": 0},
             "Level": {"index": 1},
             "Season": {"index": 2},
         },
@@ -61,6 +71,7 @@ DATASETS = {
             "Event Skill ID": {"index": 7},
             "Level": {"index": 8},
             "Status": {"index": 9},
+            "Inserted At": {"index": 10},
         },
     },
 }

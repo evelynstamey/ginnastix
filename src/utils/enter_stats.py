@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 import sys
+from datetime import datetime
 from functools import cached_property
 from functools import reduce
 
@@ -23,6 +24,7 @@ class SkillEvaluation:
         self.df_levels = self.read_reference_dataset("levels")
         self.df_events = self.read_reference_dataset("events")
         self.df_skills = self.read_reference_dataset("skills")
+        self.df_students = self.read_reference_dataset("students")
         self.df_student_levels = self.read_reference_dataset("student_levels")
 
     @property
@@ -53,9 +55,13 @@ class SkillEvaluation:
             attr_desc="Level Description",
             prompt="Enter your student level",
         )
-        all_students = self.df_student_levels["Name"].to_list()
-        students = self.df_student_levels[self.df_student_levels["Level"] == level][
-            "Name"
+        df_active_students = self.df_students[self.df_students["Is Active"] == "TRUE"]
+        df_active_students = pd.merge(
+            df_active_students, self.df_student_levels, on="Student", how="left"
+        )[["Student", "Level"]]
+        all_students = df_active_students["Student"].to_list()
+        students = df_active_students[df_active_students["Level"] == level][
+            "Student"
         ].to_list()
         students = sorted(list(set(students)))
         print(
@@ -68,9 +74,7 @@ class SkillEvaluation:
             "Would you like to add any other students?", self.bool_options
         )
         if _input == "yes":
-            options = {
-                idx: val for idx, val in enumerate(all_students) if val not in students
-            }
+            options = dict(enumerate([s for s in all_students if s not in students]))
             names = self.get_input(
                 "Which students would you like to add?", options, multi=True
             )
@@ -86,7 +90,7 @@ class SkillEvaluation:
             "Would you like to remove any students?", self.bool_options
         )
         if _input == "yes":
-            options = {idx: val for idx, val in enumerate(students)}
+            options = dict(enumerate(students))
             names = self.get_input(
                 "Which students would you like to remove?", options, multi=True
             )
@@ -164,7 +168,7 @@ class SkillEvaluation:
 
                 # Get dimensional attributes
                 student_info = self.df_student_levels[
-                    self.df_student_levels["Name"] == _student
+                    self.df_student_levels["Student"] == _student
                 ]
                 _level = student_info["Level"].values[0]
                 skill_info = self.df_skills[
@@ -211,7 +215,12 @@ class SkillEvaluation:
                         "Level",
                         "Status",
                     ],
+                    na_values=[
+                        val for val in pd._libs.parsers.STR_NA_VALUES if val != "n/a"
+                    ],
+                    keep_default_na=False,
                 )
+                df_batch["Inserted At"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 append_dataset_rows(dataset_name="skill_evaluation", df=df_batch)
                 continue_data_entry = False
 
