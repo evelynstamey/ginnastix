@@ -1,10 +1,27 @@
-from utils.google_sheets import append_dataset_rows
-from utils.google_sheets import authenticate
-from utils.google_sheets import read_dataset
+import sys
+
+from utils.enter_attendance import Attendance
+from utils.enter_skills import SkillEvaluation
 
 if __name__ == "__main__":
-    creds = authenticate()
-    df = read_dataset(dataset_name="skill_evaluation", credentials=creds)
+    accepted_operations = ["skill", "attendance"]
+    if len(sys.argv) == 1 or sys.argv[1] not in accepted_operations:
+        raise ValueError(
+            f"Please supply one of the following commands: {accepted_operations}"
+        )
 
-    new_df = df.iloc[[0]]
-    append_dataset_rows(dataset_name="skill_evaluation", df=new_df, credentials=None)
+    reference_dataset_source = "local"
+    try:
+        if sys.argv[2] == "--clear-cache":
+            reference_dataset_source = "gsheets"
+    except Exception:
+        pass
+
+    operation = sys.argv[1]
+    if operation == "skill":
+        se = SkillEvaluation(reference_dataset_source)
+        se.add()
+
+    if operation == "attendance":
+        se = Attendance(reference_dataset_source)
+        se.add()

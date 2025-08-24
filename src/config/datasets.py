@@ -45,7 +45,6 @@ DATASETS = {
             "Student": {"index": 0},
             "DOB": {"index": 1},
             "Current Age": {"index": 2, "dtype": "float"},
-            "Is Active": {"index": 3},  # TODO: handle boolean types
         },
     },
     "student_levels": {
@@ -55,6 +54,57 @@ DATASETS = {
             "Student": {"index": 0},
             "Level": {"index": 1},
             "Season": {"index": 2},
+        },
+    },
+    "classes": {
+        "spreadsheet_id": "1ir39WGL9GD35PHEbntNIjlxPswx6H9AtYwm5r0EETLA",
+        "sheet_range": "Classes",
+        "schema": {
+            "Class": {"index": 0},
+            "Season": {"index": 1},
+            "Season Year": {"index": 2},
+            "Start": {"index": 3},
+            "Stop": {"index": 4},
+            "N Training Days": {"index": 5, "dtype": "int"},
+            "N Training Hours": {"index": 6, "dtype": "float"},
+            "N Classes": {"index": 7, "dtype": "int"},
+            "N Holidays": {"index": 8, "dtype": "int"},
+            "Team Agreement": {"index": 9},
+        },
+    },
+    "holidays": {
+        "spreadsheet_id": "1ir39WGL9GD35PHEbntNIjlxPswx6H9AtYwm5r0EETLA",
+        "sheet_range": "Holidays",
+        "schema": {
+            "Holiday": {"index": 0},
+            "Date": {"index": 1},
+            "Day": {"index": 2},
+            "Gym Closed": {"index": 3},  # TODO: handle boolean types
+            "No Practice": {
+                "index": 4,
+                "is_nullable": True,
+            },  # TODO: handle boolean types
+        },
+    },
+    "class_sessions": {
+        "spreadsheet_id": "1ir39WGL9GD35PHEbntNIjlxPswx6H9AtYwm5r0EETLA",
+        "sheet_range": "Class Sessions",
+        "schema": {
+            "Class": {"index": 0},
+            "Day": {"index": 1},
+            "Start Time": {"index": 2},
+            "Stop Time": {"index": 3},
+            "Training Hours": {"index": 4, "dtype": "float"},
+        },
+    },
+    "student_classes": {
+        "spreadsheet_id": "1ir39WGL9GD35PHEbntNIjlxPswx6H9AtYwm5r0EETLA",
+        "sheet_range": "Student Classes",
+        "schema": {
+            "Student": {"index": 0},
+            "Class": {"index": 1},
+            "Start": {"index": 2},
+            "Stop": {"index": 3, "is_nullable": True},
         },
     },
     "skill_evaluation": {
@@ -72,6 +122,34 @@ DATASETS = {
             "Level": {"index": 8},
             "Status": {"index": 9},
             "Inserted At": {"index": 10},
+        },
+    },
+    "attendance": {
+        "spreadsheet_id": "1ir39WGL9GD35PHEbntNIjlxPswx6H9AtYwm5r0EETLA",
+        "sheet_range": "Attendance",
+        "schema": {
+            "Athlete": {"index": 0},
+            "Date": {"index": 1},
+            "Attended Class": {"index": 2},
+            "On Time": {"index": 3, "is_nullable": True},
+            "Prepared": {"index": 4, "is_nullable": True},
+            "Kind To Others": {"index": 5, "is_nullable": True},
+            "Listened To Instructions": {"index": 6, "is_nullable": True},
+            "Completed Assignments": {"index": 7, "is_nullable": True},
+            "Focused Mindset": {"index": 8, "is_nullable": True},
+            "Positive Attitude": {"index": 9, "is_nullable": True},
+            "Pain Free": {"index": 10, "is_nullable": True},
+            "Notes": {"index": 11, "is_nullable": True},
+            "On Time (Score)": {"index": 12, "is_nullable": True, "dtype": "float"},
+            "Prepared (Score)": {"index": 13, "is_nullable": True, "dtype": "float"},
+            "Kind To Others (Score)": {"index": 14, "is_nullable": True, "dtype": "float"},
+            "Listened To Instructions (Score)": {"index": 15, "is_nullable": True, "dtype": "float"},
+            "Completed Assignments (Score)": {"index": 16, "is_nullable": True, "dtype": "float"},
+            "Focused Mindset (Score)": {"index": 17, "is_nullable": True, "dtype": "float"},
+            "Positive Attitude (Score)": {"index": 18, "is_nullable": True, "dtype": "float"},
+            "Pain Free (Score)": {"index": 19, "is_nullable": True, "dtype": "float"},
+            "Expected Class Size": {"index": 20, "dtype": "int"},
+            "Expected Attendance Rate": {"index": 21, "dtype": "float"},
         },
     },
 }

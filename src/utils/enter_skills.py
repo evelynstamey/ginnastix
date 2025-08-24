@@ -1,7 +1,6 @@
 import json
 import os
 import pickle
-import sys
 from datetime import datetime
 from functools import cached_property
 from functools import reduce
@@ -24,7 +23,7 @@ class SkillEvaluation:
         self.df_levels = self.read_reference_dataset("levels")
         self.df_events = self.read_reference_dataset("events")
         self.df_skills = self.read_reference_dataset("skills")
-        self.df_students = self.read_reference_dataset("students")
+        self.df_student_classes = self.read_reference_dataset("student_classes")
         self.df_student_levels = self.read_reference_dataset("student_levels")
 
     @property
@@ -55,7 +54,9 @@ class SkillEvaluation:
             attr_desc="Level Description",
             prompt="Enter your student level",
         )
-        df_active_students = self.df_students[self.df_students["Is Active"] == "TRUE"]
+        df_active_students = self.df_student_classes[
+            self.df_student_classes["Stop"].isna()
+        ]
         df_active_students = pd.merge(
             df_active_students, self.df_student_levels, on="Student", how="left"
         )[["Student", "Level"]]
@@ -258,7 +259,9 @@ class SkillEvaluation:
                 value_desc = df_selected_option[attr_desc].values[0]
         return value, value_desc
 
-    def get_input(self, prompt, options, multi=False):
+    def get_input(self, prompt, options=None, multi=False):
+        if not options:
+            return input(f"\n{prompt}\n\n>>> ")
         options_text = "\n".join(
             f"  [{idx + 1}]: {val}" for idx, val in options.items()
         )
@@ -267,15 +270,3 @@ class SkillEvaluation:
             return [options[int(i) - 1] for i in x.split(",")]
         else:
             return options[int(x) - 1]
-
-
-if __name__ == "__main__":
-    reference_dataset_source = "local"
-    try:
-        if sys.argv[1] == "--clear-cache":
-            reference_dataset_source = "gsheets"
-    except Exception:
-        pass
-
-    se = SkillEvaluation(reference_dataset_source)
-    se.add()

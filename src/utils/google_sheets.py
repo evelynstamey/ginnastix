@@ -22,6 +22,9 @@ def authenticate(credentials_file=None, token_file=None, scopes=None):
     -------
       google.oauth2.credentials.Credentials
     """
+    # TODO: continue to iterate on this function
+    #   ref: https://stackoverflow.com/questions/66058279/token-has-been-expired-or-revoked-google-oauth2-refresh-token-gets-expired-i
+
     credentials_file = credentials_file or CREDENTIALS_FILE
     token_file = token_file or TOKEN_FILE
     scopes = scopes or SCOPES
@@ -36,13 +39,33 @@ def authenticate(credentials_file=None, token_file=None, scopes=None):
             creds = Credentials.from_authorized_user_file(token_file, scopes)
         else:
             print("Scope has changed (or is not defined)")
-    # If there are no (valid) credentials available, let the user log in.
+
     if not creds or not creds.valid:
+        # Try refreshing credentials
+        re_login = False
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            try:
+                creds.refresh(Request())
+            except Exception as e:
+                if e.args[1]["error"] == "invalid_client":  # Unauthorized
+                    re_login = True
+                elif (
+                    e.args[1]["error"] == "invalid_grant"
+                ):  # Token has been expired or revoked
+                    e.add_note(
+                        "Add a new client secret here: "
+                        "https://console.cloud.google.com/auth/clients/236291344840-vdd3f9t32k8svbv3mrfvna1vkil41vt8.apps.googleusercontent.com?project=ginnastix"
+                    )
+                    raise e
+
         else:
+            re_login = True
+
+        # If there are no (valid) credentials available, let the user log in.
+        if re_login:
             flow = InstalledAppFlow.from_client_secrets_file(credentials_file, scopes)
             creds = flow.run_local_server(port=0)
+
         # Save the credentials for the next run
         with open(token_file, "w") as token:
             token.write(creds.to_json())
@@ -115,6 +138,7 @@ def append_dataset_rows(dataset_name, df, credentials=None):
     print("\n----------  data sample  ----------\n")
     print(df.head())
     print("...")
+
     print("\n----------  data sample  ----------\n")
     credentials = credentials or authenticate()
     sheet = get_sheet(credentials)
