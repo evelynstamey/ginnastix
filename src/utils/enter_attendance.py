@@ -5,10 +5,10 @@ from datetime import datetime
 from datetime import timedelta
 from functools import cached_property
 from functools import reduce
-from utils.google_sheets import append_dataset_rows
 
 import pandas as pd
 
+from utils.google_sheets import append_dataset_rows
 from utils.google_sheets import authenticate
 from utils.google_sheets import read_dataset
 
@@ -16,13 +16,12 @@ from utils.google_sheets import read_dataset
 class Attendance:
     _credentials = None
     _data_dir = "data"
+    _expected_attendance_rate = 0.8
 
     def __init__(self, reference_dataset_source):
         self._source = reference_dataset_source
-        self.df_students = self.read_reference_dataset("students")
         self.df_class_sessions = self.read_reference_dataset("class_sessions")
         self.df_student_classes = self.read_reference_dataset("student_classes")
-        self.df_classes = self.read_reference_dataset("classes")
         self.df_holidays = self.read_reference_dataset("holidays")
 
     @property
@@ -42,7 +41,9 @@ class Attendance:
     @cached_property
     def class_days(self):
         # TODO: clean up
-        self.df_student_classes["Start"] = self.df_student_classes["Start"].apply(self.norm_date_string)
+        self.df_student_classes["Start"] = self.df_student_classes["Start"].apply(
+            self.norm_date_string
+        )
         self.df_holidays["DT"] = self.df_holidays["Date"].apply(self.to_dt)
         df_active_student_classes = self.df_student_classes[
             self.df_student_classes["Stop"].isna()
@@ -73,16 +74,19 @@ class Attendance:
             on="DT",
             how="left",
         )
-        df3 = df3[(df3["Holiday"].isna()) & (df3["Start"].apply(self.to_dt) <= df3["DT"])][["DT", "Day", "Class", "Student"]]
+        df3 = df3[
+            (df3["Holiday"].isna()) & (df3["Start"].apply(self.to_dt) <= df3["DT"])
+        ][["DT", "Day", "Class", "Student"]]
         df3["Date"] = df3["DT"].apply(self.norm_date_string)
 
         return df3
 
     @cached_property
     def date_info(self):
+        # TODO: clean up
         max_display = 6
         dates = []
-        for _date, _ in self.class_days.groupby(['Date', 'Day']):
+        for _date, _ in self.class_days.groupby(["Date", "Day"]):
             dates.append(_date)
         dates = sorted(dates, key=lambda x: x[0], reverse=True)[0:max_display]
         dates.append(("OTHER", ""))
@@ -92,7 +96,7 @@ class Attendance:
             attr_desc="Day",
             prompt="Enter your date",
         )
-        if date != "OTHER": 
+        if date != "OTHER":
             dt = datetime.strptime(date, "%m/%d/%Y")
         else:
             while True:
@@ -101,7 +105,10 @@ class Attendance:
                     dt = datetime.strptime(_input, "%m/%d/%Y")
                     date = dt.strftime("%m/%d/%Y")
                     day = dt.strftime("%A")
-                    if self.class_days[(self.class_days["Date"] == date) & (self.class_days["Day"] == day)].empty:
+                    if self.class_days[
+                        (self.class_days["Date"] == date)
+                        & (self.class_days["Day"] == day)
+                    ].empty:
                         print(f"Class is not held on {_input}. Enter a different date.")
                     else:
                         break
@@ -109,10 +116,9 @@ class Attendance:
                     print(f"Invalid input: {e}. Enter a different date.")
         return dt, date, day
 
-
     def to_dt(self, x):
         return datetime.strptime(x, "%m/%d/%Y")
-    
+
     def norm_date_string(self, x):
         if isinstance(x, str):
             res = datetime.strptime(x, "%m/%d/%Y").strftime("%m/%d/%Y")
@@ -140,9 +146,7 @@ class Attendance:
         return df
 
     def add(self):
-        _dt, _date, _day = self.date_info
-        _students = sorted(self.class_days[self.class_days["DT"] == _dt]["Student"].to_list())
-        print(f"Entering attendance for {_day} {_date} ...")
+        # # TODO: clean up
         attr_cols = [
             "Attended Class",
             "On Time",
@@ -154,22 +158,37 @@ class Attendance:
             "Positive Attitude",
             "Pain Free",
         ]
-        num_attr_cols = [f"{name} (Score)" for name in attr_cols]
+        _dt, _date, _day = self.date_info
+        _students = sorted(
+            self.class_days[self.class_days["DT"] == _dt]["Student"].to_list()
+        )
 
-        absent_students = self.get_input("Any absent students?", options=_students, multi=True)
+        print(f"Entering attendance information for {_day} {_date} ...")
+        absent_students = self.get_input(
+            "Any absent students?", options=_students, multi=True
+        )
         present_students = sorted(list(set(_students).difference(absent_students)))
-        late_students = self.get_input("Any late students?", options=present_students, multi=True)
-        unprepared_students = self.get_input("Any unprepared students?", options=present_students, multi=True)
-        injured_students = self.get_input("Any injured students?", options=present_students, multi=True)
-        problem_students = self.get_input("Any students with behavioral issues?", options=present_students, multi=True)
+        late_students = self.get_input(
+            "Any late students?", options=present_students, multi=True
+        )
+        unprepared_students = self.get_input(
+            "Any unprepared students?", options=present_students, multi=True
+        )
+        injured_students = self.get_input(
+            "Any injured students?", options=present_students, multi=True
+        )
+        problem_students = self.get_input(
+            "Any students with behavioral issues?", options=present_students, multi=True
+        )
 
+        print("Entering athlete-specific information ...")
         options = ["No", "Somewhat", "Mostly", "Yes"]
         for _student in _students:
             # Set defaults
             _ac = _ot = _p = _kto = _lti = _ca = _fm = _pa = _pf = "Yes"
             _notes = ""
 
-            print(f"------------ {_student} ------------")
+            print(f"\n------------ {_student} ------------\n")
             if _student in absent_students:
                 _ac = "No"
                 _ot = _p = _kto = _lti = _ca = _fm = _pa = _pf = ""
@@ -187,17 +206,31 @@ class Attendance:
                 _pa = self.get_input("[Positive Attitude]", options=options)
 
             values = [_ac, _ot, _p, _kto, _lti, _ca, _fm, _pa, _pf]
-            summary = [f"{attr} - {value}" for attr, value in zip(attr_cols, values) if value not in ("Yes", "")]
-            divider = "----------------------------"
+            summary = [
+                f"{attr} - {value}"
+                for attr, value in zip(attr_cols, values)
+                if value not in ("Yes", "")
+            ]
+            divider = "\n----------------------------\n"
             summary_text = "\n".join(summary)
             _notes = self.get_input(
                 f"Any additional notes about {_student}?"
-                f"\n{divider}\n{summary_text}\n{divider}\n")
+                f"{divider}{summary_text}{divider}"
+            )
 
-            row = [_student, _date] + values + [_notes]
             # Incrementally store row
-            with open(self.out_file, "a") as file:
-                file.write(",".join(row) + "\n")
+            row = [_student, _date, _day] + values + [_notes]
+            columns = [
+                "Athlete",
+                "Date",
+                "Day",
+                *attr_cols,
+                "Notes",
+            ]
+            df_out = pd.DataFrame([row], columns=columns)
+            df_out.to_csv(
+                self.out_file, mode="a", header=False, columns=None, index=False
+            )
 
         df_batch = pd.read_csv(
             self.out_file,
@@ -205,20 +238,28 @@ class Attendance:
             names=[
                 "Athlete",
                 "Date",
+                "Day",
                 *attr_cols,
                 "Notes",
-                # *num_attr_cols,
-                # "Expected Class Size",
-                # "Expected Attendance Rate",
             ],
-            na_values=[
-                val for val in pd._libs.parsers.STR_NA_VALUES if val != "n/a"
-            ],
+            na_values=[val for val in pd._libs.parsers.STR_NA_VALUES if val != "n/a"],
             keep_default_na=False,
+            sep=",",
         )
-        
+        for col in attr_cols:
+            df_batch[f"{col} (Score)"] = df_batch[col].map(
+                {
+                    "Yes": 1,
+                    "Mostly": 2 / 3,
+                    "Somewhat": 1 / 3,
+                    "No": 0,
+                },
+                na_action="ignore",
+            )
+        df_batch["Expected Class Size"] = len(_students)
+        df_batch["Expected Attendance Rate"] = self._expected_attendance_rate
         df_batch["Inserted At"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        append_dataset_rows(dataset_name="skill_evaluation", df=df_batch)
+        append_dataset_rows(dataset_name="attendance", df=df_batch)
 
         # Clean up staging file
         if os.path.exists(self.out_file):
@@ -258,7 +299,7 @@ class Attendance:
     def get_input(self, prompt, options=None, multi=False):
         if not options:
             return input(f"\n{prompt}\n\n>>> ")
-        
+
         if isinstance(options, dict):
             options_text = "\n".join(
                 f"  [{idx + 1}]: {val}" for idx, val in options.items()
@@ -269,7 +310,7 @@ class Attendance:
             )
         x = input(f"\n{prompt}\n{options_text}\n\n>>> ")
         if multi:
-            if x: 
+            if x:
                 return [options[int(i) - 1] for i in x.split(",")]
             else:
                 return []
