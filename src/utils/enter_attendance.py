@@ -18,8 +18,9 @@ class Attendance:
     _data_dir = "data"
     _expected_attendance_rate = 0.8
 
-    def __init__(self, reference_dataset_source):
+    def __init__(self, reference_dataset_source, resume_data_entry=False):
         self._source = reference_dataset_source
+        self._resume_data_entry = resume_data_entry
         self.df_class_sessions = self.read_reference_dataset("class_sessions")
         self.df_student_classes = self.read_reference_dataset("student_classes")
         self.df_holidays = self.read_reference_dataset("holidays")
@@ -158,10 +159,36 @@ class Attendance:
             "Positive Attitude",
             "Pain Free",
         ]
-        _dt, _date, _day = self.date_info
-        _students = sorted(
-            self.class_days[self.class_days["DT"] == _dt]["Student"].to_list()
-        )
+        if self._resume_data_entry:
+            df_partial_batch = pd.read_csv(
+                self.out_file,
+                header=None,
+                names=[
+                    "Athlete",
+                    "Date",
+                    "Day",
+                    *attr_cols,
+                    "Notes",
+                ],
+                na_values=[
+                    val for val in pd._libs.parsers.STR_NA_VALUES if val != "n/a"
+                ],
+                keep_default_na=False,
+                sep=",",
+            )
+            _date = df_partial_batch["Date"].values[0]
+            _day = df_partial_batch["Day"].values[0]
+            _dt = self.to_dt(_date)
+            _processed_students = df_partial_batch["Athlete"].to_list()
+            _all_students = sorted(
+                self.class_days[self.class_days["DT"] == _dt]["Student"].to_list()
+            )
+            _students = sorted(list(set(_all_students) - set(_processed_students)))
+        else:
+            _dt, _date, _day = self.date_info
+            _students = sorted(
+                self.class_days[self.class_days["DT"] == _dt]["Student"].to_list()
+            )
 
         print(f"Entering attendance information for {_day} {_date} ...")
         absent_students = self.get_input(
@@ -297,6 +324,13 @@ class Attendance:
         return value, value_desc
 
     def get_input(self, prompt, options=None, multi=False):
+        while True:
+            try:
+                return self._get_input(prompt, options, multi)
+            except Exception as e:
+                print(f"Invalid input ({e})")
+
+    def _get_input(self, prompt, options=None, multi=False):
         if not options:
             return input(f"\n{prompt}\n\n>>> ")
 
@@ -308,6 +342,7 @@ class Attendance:
             options_text = "\n".join(
                 f"  [{idx + 1}]: {val}" for idx, val in enumerate(options)
             )
+
         x = input(f"\n{prompt}\n{options_text}\n\n>>> ")
         if multi:
             if x:

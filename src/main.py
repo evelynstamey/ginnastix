@@ -11,9 +11,12 @@ if __name__ == "__main__":
         )
 
     reference_dataset_source = "local"
+    resume_data_entry = False
     try:
-        if sys.argv[2] == "--clear-cache":
+        if "--clear-cache" in sys.argv:
             reference_dataset_source = "gsheets"
+        if "--resume-data-entry" in sys.argv:
+            resume_data_entry = True
     except Exception:
         pass
 
@@ -23,5 +26,5 @@ if __name__ == "__main__":
         se.add()
 
     if operation == "attendance":
-        se = Attendance(reference_dataset_source)
+        se = Attendance(reference_dataset_source, resume_data_entry)
         se.add()
