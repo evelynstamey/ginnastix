@@ -116,7 +116,7 @@ DATASETS = {
             "Skill": {"index": 2},
             "Variant": {"index": 3, "is_nullable": True},
             "Athlete": {"index": 4},
-            "Score": {"index": 5, "dtype": "int"},
+            "Score": {"index": 5, "dtype": "float"},
             "Skill ID": {"index": 6},
             "Event Skill ID": {"index": 7},
             "Level": {"index": 8},
@@ -141,42 +141,47 @@ DATASETS = {
             "Positive Attitude": {"index": 10, "is_nullable": True},
             "Pain Free": {"index": 11, "is_nullable": True},
             "Notes": {"index": 12, "is_nullable": True},
-            "Attended Class (Score)": {
+            "Attended Class Score": {
                 "index": 13,
                 "is_nullable": True,
                 "dtype": "Float32",
             },
-            "On Time (Score)": {"index": 14, "is_nullable": True, "dtype": "Float32"},
-            "Prepared (Score)": {"index": 15, "is_nullable": True, "dtype": "Float32"},
-            "Kind To Others (Score)": {
+            "On Time Score": {"index": 14, "is_nullable": True, "dtype": "Float32"},
+            "Prepared Score": {"index": 15, "is_nullable": True, "dtype": "Float32"},
+            "Kind To Others Score": {
                 "index": 16,
                 "is_nullable": True,
                 "dtype": "Float32",
             },
-            "Listened To Instructions (Score)": {
+            "Listened To Instructions Score": {
                 "index": 17,
                 "is_nullable": True,
                 "dtype": "Float32",
             },
-            "Completed Assignments (Score)": {
+            "Completed Assignments Score": {
                 "index": 18,
                 "is_nullable": True,
                 "dtype": "Float32",
             },
-            "Focused Mindset (Score)": {
+            "Focused Mindset Score": {
                 "index": 19,
                 "is_nullable": True,
                 "dtype": "Float32",
             },
-            "Positive Attitude (Score)": {
+            "Positive Attitude Score": {
                 "index": 20,
                 "is_nullable": True,
                 "dtype": "Float32",
             },
-            "Pain Free (Score)": {"index": 21, "is_nullable": True, "dtype": "Float32"},
-            "Expected Class Size": {"index": 22, "dtype": "int"},
-            "Expected Attendance Rate": {"index": 23, "dtype": "float"},
-            "Inserted At": {"index": 24},
+            "Pain Free Score": {"index": 21, "is_nullable": True, "dtype": "Float32"},
+            "Overall Behavior Score": {
+                "index": 22,
+                "is_nullable": True,
+                "dtype": "Float32",
+            },
+            "Expected Class Size": {"index": 23, "dtype": "int"},
+            "Expected Attendance Rate": {"index": 24, "dtype": "float"},
+            "Inserted At": {"index": 25},
         },
     },
 }

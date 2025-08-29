@@ -25,6 +25,11 @@ class Attendance:
         self.df_student_classes = self.read_reference_dataset("student_classes")
         self.df_holidays = self.read_reference_dataset("holidays")
 
+        # Set when self.initialize_class_session() is called
+        self.date_str = ""
+        self.day = ""
+        self.students = []
+
     @property
     def credentials(self):
         if not self._credentials or not self._credentials.valid:
@@ -91,23 +96,23 @@ class Attendance:
             dates.append(_date)
         dates = sorted(dates, key=lambda x: x[0], reverse=True)[0:max_display]
         dates.append(("OTHER", ""))
-        date, day = self.get_input_from_df(
+        date_str, day = self.get_input_from_df(
             df=pd.DataFrame(dates, columns=["Date", "Day"]),
             attr="Date",
             attr_desc="Day",
             prompt="Enter your date",
         )
-        if date != "OTHER":
-            dt = datetime.strptime(date, "%m/%d/%Y")
+        if date_str != "OTHER":
+            dt = datetime.strptime(date_str, "%m/%d/%Y")
         else:
             while True:
                 _input = self.get_input("What date?")
                 try:
                     dt = datetime.strptime(_input, "%m/%d/%Y")
-                    date = dt.strftime("%m/%d/%Y")
+                    date_str = dt.strftime("%m/%d/%Y")
                     day = dt.strftime("%A")
                     if self.class_days[
-                        (self.class_days["Date"] == date)
+                        (self.class_days["Date"] == date_str)
                         & (self.class_days["Day"] == day)
                     ].empty:
                         print(f"Class is not held on {_input}. Enter a different date.")
@@ -115,7 +120,7 @@ class Attendance:
                         break
                 except Exception as e:
                     print(f"Invalid input: {e}. Enter a different date.")
-        return dt, date, day
+        return dt, date_str, day
 
     def to_dt(self, x):
         return datetime.strptime(x, "%m/%d/%Y")
@@ -146,9 +151,9 @@ class Attendance:
             pickle.dump(df, f)
         return df
 
-    def add(self):
-        # # TODO: clean up
-        attr_cols = [
+    @cached_property
+    def attendance_attributes(self):
+        return [
             "Attended Class",
             "On Time",
             "Prepared",
@@ -159,42 +164,51 @@ class Attendance:
             "Positive Attitude",
             "Pain Free",
         ]
-        if self._resume_data_entry:
-            df_partial_batch = pd.read_csv(
-                self.out_file,
-                header=None,
-                names=[
-                    "Athlete",
-                    "Date",
-                    "Day",
-                    *attr_cols,
-                    "Notes",
-                ],
-                na_values=[
-                    val for val in pd._libs.parsers.STR_NA_VALUES if val != "n/a"
-                ],
-                keep_default_na=False,
-                sep=",",
+
+    def read_raw_df(self):
+        return pd.read_csv(
+            self.out_file,
+            header=None,
+            names=[
+                "Athlete",
+                "Date",
+                "Day",
+                *self.attendance_attributes,
+                "Notes",
+            ],
+            na_values=[val for val in pd._libs.parsers.STR_NA_VALUES if val != "n/a"],
+            keep_default_na=False,
+            sep=",",
+        )
+
+    def initialize_class_session(self):
+        if self._resume_data_entry and os.path.exists(self.out_file):
+            df_partial_batch = self.read_raw_df()
+            date_str = df_partial_batch["Date"].values[0]
+            day = df_partial_batch["Day"].values[0]
+            dt = self.to_dt(date_str)
+            processed_students = df_partial_batch["Athlete"].to_list()
+            all_students = sorted(
+                self.class_days[self.class_days["DT"] == dt]["Student"].to_list()
             )
-            _date = df_partial_batch["Date"].values[0]
-            _day = df_partial_batch["Day"].values[0]
-            _dt = self.to_dt(_date)
-            _processed_students = df_partial_batch["Athlete"].to_list()
-            _all_students = sorted(
-                self.class_days[self.class_days["DT"] == _dt]["Student"].to_list()
-            )
-            _students = sorted(list(set(_all_students) - set(_processed_students)))
+            students = sorted(list(set(all_students) - set(processed_students)))
         else:
-            _dt, _date, _day = self.date_info
-            _students = sorted(
-                self.class_days[self.class_days["DT"] == _dt]["Student"].to_list()
+            dt, date_str, day = self.date_info
+            students = sorted(
+                self.class_days[self.class_days["DT"] == dt]["Student"].to_list()
             )
 
-        print(f"Entering attendance information for {_day} {_date} ...")
+        # Set class attributes
+        self.date_str = date_str
+        self.day = day
+        self.students = students
+
+    def collect_attendance(self):
+        print(f"Entering attendance information for {self.day} {self.date_str} ...")
         absent_students = self.get_input(
-            "Any absent students?", options=_students, multi=True
+            "Any absent students?", options=self.students, multi=True
         )
-        present_students = sorted(list(set(_students).difference(absent_students)))
+        present_students = sorted(list(set(self.students).difference(absent_students)))
         late_students = self.get_input(
             "Any late students?", options=present_students, multi=True
         )
@@ -210,7 +224,7 @@ class Attendance:
 
         print("Entering athlete-specific information ...")
         options = ["No", "Somewhat", "Mostly", "Yes"]
-        for _student in _students:
+        for _student in self.students:
             # Set defaults
             _ac = _ot = _p = _kto = _lti = _ca = _fm = _pa = _pf = "Yes"
             _notes = ""
@@ -235,23 +249,23 @@ class Attendance:
             values = [_ac, _ot, _p, _kto, _lti, _ca, _fm, _pa, _pf]
             summary = [
                 f"{attr} - {value}"
-                for attr, value in zip(attr_cols, values)
+                for attr, value in zip(self.attendance_attributes, values)
                 if value not in ("Yes", "")
             ]
             divider = "\n----------------------------\n"
-            summary_text = "\n".join(summary)
+            summary_text = "\n".join(summary) or "(perfect behavior)"
             _notes = self.get_input(
                 f"Any additional notes about {_student}?"
                 f"{divider}{summary_text}{divider}"
             )
 
             # Incrementally store row
-            row = [_student, _date, _day] + values + [_notes]
+            row = [_student, self.date_str, self.day] + values + [_notes]
             columns = [
                 "Athlete",
                 "Date",
                 "Day",
-                *attr_cols,
+                *self.attendance_attributes,
                 "Notes",
             ]
             df_out = pd.DataFrame([row], columns=columns)
@@ -259,22 +273,10 @@ class Attendance:
                 self.out_file, mode="a", header=False, columns=None, index=False
             )
 
-        df_batch = pd.read_csv(
-            self.out_file,
-            header=None,
-            names=[
-                "Athlete",
-                "Date",
-                "Day",
-                *attr_cols,
-                "Notes",
-            ],
-            na_values=[val for val in pd._libs.parsers.STR_NA_VALUES if val != "n/a"],
-            keep_default_na=False,
-            sep=",",
-        )
-        for col in attr_cols:
-            df_batch[f"{col} (Score)"] = df_batch[col].map(
+    def process_batch(self):
+        df_batch = self.read_raw_df()
+        for col in self.attendance_attributes:
+            df_batch[f"{col} Score"] = df_batch[col].map(
                 {
                     "Yes": 1,
                     "Mostly": 2 / 3,
@@ -283,9 +285,23 @@ class Attendance:
                 },
                 na_action="ignore",
             )
-        df_batch["Expected Class Size"] = len(_students)
+        df_batch["Overall Behavior Score"] = df_batch[
+            [
+                f"{col} Score"
+                for col in self.attendance_attributes
+                if col not in ["Attended Class", "Pain Free"]
+            ]
+        ].mean(axis=1)
+        df_batch["Expected Class Size"] = len(self.students)
         df_batch["Expected Attendance Rate"] = self._expected_attendance_rate
         df_batch["Inserted At"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        return df_batch
+
+    def add(self):
+        self.initialize_class_session()
+        self.collect_attendance()
+        df_batch = self.process_batch()
         append_dataset_rows(dataset_name="attendance", df=df_batch)
 
         # Clean up staging file
@@ -331,7 +347,7 @@ class Attendance:
                 print(f"Invalid input ({e})")
 
     def _get_input(self, prompt, options=None, multi=False):
-        if not options:
+        if options is None:
             return input(f"\n{prompt}\n\n>>> ")
 
         if isinstance(options, dict):
@@ -343,11 +359,17 @@ class Attendance:
                 f"  [{idx + 1}]: {val}" for idx, val in enumerate(options)
             )
 
-        x = input(f"\n{prompt}\n{options_text}\n\n>>> ")
+        x = None
+        if options_text:
+            x = input(f"\n{prompt}\n{options_text}\n\n>>> ")
+
         if multi:
             if x:
                 return [options[int(i) - 1] for i in x.split(",")]
             else:
                 return []
         else:
-            return options[int(x) - 1]
+            if x:
+                return options[int(x) - 1]
+            else:
+                return ""
