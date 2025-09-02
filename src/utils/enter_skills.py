@@ -42,7 +42,12 @@ class SkillEvaluation:
 
     @cached_property
     def evaluation_period(self):
-        options = self.df_periods["Period"].to_dict()
+        options = (
+            self.df_periods["Period"]
+            .sort_values(ascending=False)
+            .reset_index(drop=True)
+            .to_dict()
+        )
         return self.get_input("Enter your evaluation period", options)
 
     @cached_property
@@ -104,6 +109,21 @@ class SkillEvaluation:
 
         return students
 
+    @cached_property
+    def skills_attributes(self):
+        return [
+            "Period",
+            "Event",
+            "Skill",
+            "Variant",
+            "Athlete",
+            "Score",
+            "Skill ID",
+            "Event Skill ID",
+            "Level",
+            "Status",
+        ]
+
     def read_reference_dataset(self, name):
         file_name = os.path.join(self._data_dir, f"{name}.pkl")
         if self._source == "local":
@@ -162,8 +182,22 @@ class SkillEvaluation:
             print(f"Enter your skill scores for {full_skill_description}")
             for _student in _students:
                 # Get score (if given)
-                _score = input(f"{_student} >>> ")
-                if _score not in ["0", "1", "2", "3", "4", "5"]:
+                while True:
+                    _score = input(f"{_student} >>> ")
+                    is_valid_input = False
+                    try:
+                        _score = float(_score)
+                        if _score >= 0 and _score <= 5:
+                            is_valid_input = True
+                    except ValueError:
+                        pass
+                    is_valid_input = is_valid_input or _score == ""
+                    if is_valid_input:
+                        break
+                    else:
+                        print("Invalid input!")
+
+                if _score == "":
                     print("Skipping student")
                     continue
 
@@ -173,7 +207,8 @@ class SkillEvaluation:
                 ]
                 _level = student_info["Level"].values[0]
                 skill_info = self.df_skills[
-                    (self.df_skills["Skill"] == _event_skill)
+                    (self.df_skills["Event"] == _event)
+                    & (self.df_skills["Skill"] == _event_skill)
                     & (self.df_skills["Variant"] == _event_skill_variant)
                 ]
                 _skill_id = skill_info["Skill ID"].values[0]
@@ -193,8 +228,10 @@ class SkillEvaluation:
                 ]
 
                 # Incrementally store row
-                with open(self.out_file, "a") as file:
-                    file.write(",".join(row) + "\n")
+                df_out = pd.DataFrame([row], columns=self.skills_attributes)
+                df_out.to_csv(
+                    self.out_file, mode="a", header=False, columns=None, index=False
+                )
 
             _input = self.get_input(
                 "Would you like to add other skill?", self.bool_options
@@ -204,18 +241,7 @@ class SkillEvaluation:
                 df_batch = pd.read_csv(
                     self.out_file,
                     header=None,
-                    names=[
-                        "Period",
-                        "Event",
-                        "Skill",
-                        "Variant",
-                        "Athlete",
-                        "Score",
-                        "Skill ID",
-                        "Event Skill ID",
-                        "Level",
-                        "Status",
-                    ],
+                    names=self.skills_attributes,
                     na_values=[
                         val for val in pd._libs.parsers.STR_NA_VALUES if val != "n/a"
                     ],
