@@ -153,7 +153,8 @@ def append_dataset_rows(dataset_name, df, credentials=None):
         )
         .execute()
     )
-    print(f"{result.get('updates').get('updatedCells')} cells updated.")
+    url = f"https://docs.google.com/spreadsheets/d/{dataset_cfg['spreadsheet_id']}"
+    print(f"{result.get('updates').get('updatedCells')} cells updated in {url}")
 
 
 def _get_dataset_config(dataset_name):
