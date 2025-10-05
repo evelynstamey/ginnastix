@@ -162,8 +162,4 @@ cython_debug/
 
 *credentials.json
 *token.json
-*events.pkl
-*levels.pkl
-*periods.pkl
-*skills.pkl
 data/*.pkl
