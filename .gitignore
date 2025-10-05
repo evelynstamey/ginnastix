@@ -166,3 +166,4 @@ cython_debug/
 *levels.pkl
 *periods.pkl
 *skills.pkl
+*data/
