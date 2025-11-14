@@ -26,9 +26,10 @@ class Attendance:
         self.df_holidays = self.read_reference_dataset("holidays")
 
         # Set when self.initialize_class_session() is called
-        self.date_str = ""
-        self.day = ""
-        self.students = []
+        self.date_str = None
+        self.day = None
+        self.dt = None
+        self.students = None
 
     @property
     def credentials(self):
@@ -51,14 +52,11 @@ class Attendance:
             self.norm_date_string
         )
         self.df_holidays["DT"] = self.df_holidays["Date"].apply(self.to_dt)
-        df_active_student_classes = self.df_student_classes[
-            self.df_student_classes["Stop"].isna()
-        ]
-        current_timestamp = datetime.now()
-        min_timestamp = df_active_student_classes["Start"].apply(self.to_dt).min()
+
+        min_timestamp = self.df_student_classes["Start"].apply(self.to_dt).min()
         all_dates = []
         _date = min_timestamp
-        while _date <= current_timestamp:
+        while _date <= datetime.now():
             all_dates.append((_date, _date.strftime("%A")))
             _date += timedelta(days=1)
         df_dates = pd.DataFrame(all_dates, columns=["DT", "Day"])
@@ -70,7 +68,7 @@ class Attendance:
         )
         df2 = pd.merge(
             df,
-            df_active_student_classes[["Student", "Class", "Start"]],
+            self.df_student_classes[["Student", "Class", "Start"]],
             on="Class",
             how="inner",
         )
@@ -123,7 +121,10 @@ class Attendance:
         return dt, date_str, day
 
     def to_dt(self, x):
-        return datetime.strptime(x, "%m/%d/%Y")
+        if x:
+            return datetime.strptime(x, "%m/%d/%Y")
+        else:
+            return pd.NaT
 
     def norm_date_string(self, x):
         if isinstance(x, str):
@@ -182,25 +183,35 @@ class Attendance:
         )
 
     def initialize_class_session(self):
+        dt, date_str, day = self.date_info
+        processed_students = []
         if self._resume_data_entry and os.path.exists(self.out_file):
             df_partial_batch = self.read_raw_df()
             date_str = df_partial_batch["Date"].values[0]
             day = df_partial_batch["Day"].values[0]
             dt = self.to_dt(date_str)
             processed_students = df_partial_batch["Athlete"].to_list()
-            all_students = sorted(
-                self.class_days[self.class_days["DT"] == dt]["Student"].to_list()
-            )
-            students = sorted(list(set(all_students) - set(processed_students)))
-        else:
-            dt, date_str, day = self.date_info
-            students = sorted(
-                self.class_days[self.class_days["DT"] == dt]["Student"].to_list()
-            )
 
-        # Set class attributes
+        self.df_student_classes["Is Active"] = self.df_student_classes["Stop"].apply(
+            lambda x: not (self.to_dt(x) < dt)
+        )
+        self.class_days = pd.merge(
+            self.class_days,
+            self.df_student_classes[["Student", "Class", "Is Active"]],
+            on=["Student", "Class"],
+            how="left",
+        )
+        all_students = sorted(
+            self.class_days[
+                (self.class_days["DT"] == dt) & (self.class_days["Is Active"])
+            ]["Student"].to_list()
+        )
+        students = sorted(list(set(all_students) - set(processed_students)))
+
+        # Store class attributes
         self.date_str = date_str
         self.day = day
+        self.dt = dt
         self.students = students
 
     def collect_attendance(self):
