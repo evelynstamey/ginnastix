@@ -84,6 +84,7 @@ DATASETS = {
                 "index": 4,
                 "is_nullable": True,
             },  # TODO: handle boolean types
+            "Notes": {"index": 5, "is_nullable": True},
         },
     },
     "class_sessions": {
