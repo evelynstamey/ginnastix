@@ -136,7 +136,7 @@ def append_dataset_rows(dataset_name, df, credentials=None):
     dataset_cfg = _get_dataset_config(dataset_name)
     df = standardize(df, dataset_cfg["schema"])
     validate_dataset(df, dataset_cfg["schema"])
-    df = df.fillna("")  # prevent json serialization error
+    df = df.astype(object).fillna("")  # prevent json serialization error
     print(f"Writing data batch to Google Sheets (n={df.shape[0]})")
     print("\n----------  data sample  ----------\n")
     print(df.head())
