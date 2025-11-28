@@ -1,14 +1,9 @@
 import json
 
+import numpy as np
+
 
 def validate_dataset(df, schema):
-    df = df.astype(
-        {
-            k: attr.get("dtype", "object")
-            for k, attr in schema.items()
-            if k in df.columns
-        }
-    )
     errors = dict()
     for name, spec in schema.items():
         # Check if column exists
@@ -41,3 +36,15 @@ def validate_dataset(df, schema):
     if errors:
         message = json.dumps(errors, indent=2)
         raise Exception(f"Schema validation failed:\n{message}\n\n{df.head()}")
+
+
+def standardize(df, schema):
+    df = df.replace("", np.nan)
+    df = df.astype(
+        {
+            k: attr.get("dtype", "object")
+            for k, attr in schema.items()
+            if k in df.columns
+        }
+    )
+    return df

@@ -11,6 +11,7 @@ from config.datasets import DATASETS
 from config.google_sheets import CREDENTIALS_FILE
 from config.google_sheets import SCOPES
 from config.google_sheets import TOKEN_FILE
+from utils.validation import standardize
 from utils.validation import validate_dataset
 
 
@@ -126,12 +127,14 @@ def read_dataset(dataset_name, credentials=None):
         data_result["values"][dataset_cfg.get("data_index", 1) :],
         columns=data_result["values"][dataset_cfg.get("columns_index", 0)],
     )
+    df = standardize(df, dataset_cfg["schema"])
     validate_dataset(df, dataset_cfg["schema"])
     return df
 
 
 def append_dataset_rows(dataset_name, df, credentials=None):
     dataset_cfg = _get_dataset_config(dataset_name)
+    df = standardize(df, dataset_cfg["schema"])
     validate_dataset(df, dataset_cfg["schema"])
     df = df.fillna("")  # prevent json serialization error
     print(f"Writing data batch to Google Sheets (n={df.shape[0]})")
