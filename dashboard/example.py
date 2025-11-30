@@ -1,7 +1,9 @@
 import os
 import pickle
 import sys
+from datetime import datetime
 
+import matplotlib.colors as mcolors
 import numpy as np
 import plotly.graph_objects as go
 from dash import Dash
@@ -20,6 +22,26 @@ REF
     - https://plotly.com/python/line-charts/
 """
 
+BEHAVIOR_ATTRIBUTES = [
+    "On Time",
+    "Prepared",
+    "Kind To Others",
+    "Listened To Instructions",
+    "Completed Assignments",
+    "Focused Mindset",
+    "Positive Attitude",
+]
+THRESHOLD = 90
+
+samples = 101
+cmap = mcolors.LinearSegmentedColormap.from_list(
+    "custom_linear_cmap",
+    ["#f04f0a"] * 10 + ["#e89e1e"] * 3 + ["#abb53f"] * 2 + ["#208c6f"],
+    N=samples,
+)
+values = [cmap(i)[:3] for i in np.linspace(0, 1, samples)]
+RGB = [f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})" for r, g, b in values]
+
 
 class DataReader:
     _credentials = None
@@ -29,10 +51,9 @@ class DataReader:
         self._source = dataset_source
         self.df_attendance = self.read_reference_dataset("attendance")
 
-        # Process `df_attendance`
-        self.df_attendance["Behavior Score (%)"] = self.df_attendance[
-            "Overall Behavior Score"
-        ].apply(lambda x: np.round(x, 2) * 100)
+        self.df_attendance["Dt"] = self.df_attendance["Date"].apply(
+            lambda x: datetime.strptime(x, "%m/%d/%Y")
+        )
 
     @property
     def credentials(self):
@@ -59,72 +80,134 @@ class DataReader:
         return df
 
 
-@callback(Output("graph-content", "figure"), Input("dropdown-selection", "value"))
-def update_graph(value):
+def update_stats_box(df, column_name):
+    student_mean = df[column_name].mean()
+    stat = int(round(student_mean * 100, 0))
+    return f"{stat}%", RGB[stat]
+
+
+def update_description_box(column_name):
+    return column_name[:-6]
+
+
+@callback(
+    Output("stats-summary-grid", "children"), Input("dropdown-selection", "value")
+)
+def stats_summary_grid(value):
+    divs = []
+    if not value:
+        return divs
     dff = DF[DF["Athlete"] == value]
-    student_mean = dff["Behavior Score (%)"].mean()
+    for i, c in enumerate(BEHAVIOR_ATTRIBUTES):
+        stat, color = update_stats_box(dff, f"{c} Score")
+        desc = update_description_box(f"{c} Score")
+        _div = html.Div(
+            className="stats-summary-cell",
+            children=[
+                html.Div(
+                    stat,
+                    className="stats-box",
+                    style={"backgroundColor": color},
+                ),
+                html.Div(
+                    desc,
+                    className="description-box",
+                ),
+            ],
+        )
+        divs.append(_div)
+    return divs
 
-    # Create two traces: one for values above/at the threshold, one for values below
+
+@callback(
+    Output("overall-behavior-graph", "children"), [Input("dropdown-selection", "value")]
+)
+def overall_behavior_graph(value):
+    if value is None:
+        return None
+    else:
+        fig = get_overall_behavior_graph(value)
+        return dcc.Graph(figure=fig)
+
+
+def get_color(x):
+    if not x >= 0:
+        return "#000000"
+    if x >= THRESHOLD:
+        return "#b3b3b3"
+    if x < THRESHOLD:
+        return "#ff9d73"
+
+
+def get_overall_behavior_graph(value):
+    if not value:
+        return None
+    dff = DF[DF["Athlete"] == value]
+    dff = dff.sort_values(by="Dt").reset_index(drop=True)
+    dff["Behavior Score (%)"] = dff["Overall Behavior Score"].apply(
+        lambda x: np.round(x, 2) * 100
+    )
+    dff["bar_color"] = (
+        dff["Behavior Score (%)"]
+        .astype("Int64")
+        .apply(lambda x: "rgb(0,0,0)" if not x >= 0 else RGB[int(x)])
+    )
+    dff["bar_color2"] = dff["Behavior Score (%)"].astype("Int64").apply(get_color)
+    student_mean = dff["Overall Behavior Score"].mean()
+    student_mean = int(round(student_mean * 100, 0))
+
     fig = go.Figure()
-
-    # Trace for values above or at the threshold
     fig.add_trace(
-        go.Scatter(
+        go.Bar(
             x=dff["Date"],
-            y=dff["Behavior Score (%)"].where(dff["Behavior Score (%)"] >= THRESHOLD),
-            mode="markers",
-            marker=dict(color="blue", size=10),
-            name=f"Above {THRESHOLD} %",
+            y=dff["Behavior Score (%)"],
+            marker={"color": dff["bar_color"]},
+            showlegend=False,
         )
     )
-    # Trace for values below the threshold
-    fig.add_trace(
-        go.Scatter(
-            x=dff["Date"],
-            y=dff["Behavior Score (%)"].where(dff["Behavior Score (%)"] < THRESHOLD),
-            mode="markers",
-            marker=dict(color="red", size=10),
-            name=f"Below {THRESHOLD} %",
-        )
-    )
-    # Threshold
     fig.add_trace(
         go.Scatter(
             x=dff["Date"],
             y=[THRESHOLD] * dff.shape[0],
             mode="lines",
-            # marker=dict(color="red", size=10),
-            line=dict(color="grey", width=2, dash="dash"),
-            name="Class expectation",
+            line=dict(color="black", width=1, dash="dot"),
+            name="Class Expectation (90%)",
         )
     )
-    # Threshold
     fig.add_trace(
         go.Scatter(
             x=dff["Date"],
             y=[student_mean] * dff.shape[0],
             mode="lines",
-            # marker=dict(color="red", size=10),
             line=dict(
-                color="blue" if student_mean >= THRESHOLD else "red",
+                color="black" if student_mean >= THRESHOLD else "#f04f0a",
                 width=2,
-                dash="dash",
             ),
-            name="Student Average",
+            name=f"Average Score ({student_mean}%)",
         )
     )
 
+    min_date = dff["Dt"].min().strftime("%m/%d/%Y")
+    max_date = dff["Dt"].max().strftime("%m/%d/%Y")
     fig.update_layout(
-        title=None,
-        xaxis_title="Class Date",
-        yaxis_title="Behavior Score (%)",
+        title={
+            "text": "Class Behavior",
+            "subtitle": {"text": f"({min_date} to {max_date})"},
+        },
+        xaxis_title="Class Day",
+        yaxis_title="Score (%)",
+        xaxis={"showgrid": False, "showticklabels": False},
+        height=400,
+        yaxis_range=[-5, 105],
+        yaxis={"tickvals": [0, 20, 40, 60, 80, 100]},
+        bargap=0,
+        bargroupgap=0,
     )
     return fig
 
 
 if __name__ == "__main__":
     global DF
-    global THRESHOLD
 
     dataset_source = "local"
     try:
@@ -135,13 +218,21 @@ if __name__ == "__main__":
 
     dr = DataReader(dataset_source)
     DF = dr.df_attendance
-    THRESHOLD = 90
 
-    app = Dash()
+    app = Dash(prevent_initial_callbacks="initial_duplicate")
     app.layout = [
-        html.H1(children="Student Overall Behavior", style={"textAlign": "center"}),
-        dcc.Dropdown(DF["Athlete"].unique(), "--", id="dropdown-selection"),
-        dcc.Graph(id="graph-content"),
+        html.H1(children="Behavior Report", style={"textAlign": "center"}),
+        dcc.Dropdown(
+            sorted(DF["Athlete"].unique()),
+            "--",
+            id="dropdown-selection",
+            className="dropdown-selection",
+        ),
+        html.Div(
+            id="stats-summary-grid",
+            className="stats-summary-grid",
+            children=[],
+        ),
+        html.Div(id="overall-behavior-graph"),
     ]
-
-    app.run()
+    app.run(debug=True)
