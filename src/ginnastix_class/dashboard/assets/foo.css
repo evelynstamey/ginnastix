@@ -1,0 +1,48 @@
+body {
+  margin: 40px;
+  width: 1000px;
+  font-family: "Open Sans", verdana, arial, sans-serif;
+}
+.dropdown-selection {
+  width: 840px;
+  margin: 0 0 0 80px;
+}
+.stats-summary-grid {
+  display: grid;
+  grid-gap: 10px 0px;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  /* background-color: #b32020; */
+  color: #444;
+  width: 840px;
+  margin: 0 0 0 80px;
+  padding: 20px;
+}
+.stats-summary-cell {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  /* background-color: #25b0bd; */
+  color: #868211;
+}
+.stats-box {
+  /* background-color: #444; */
+  color: #fff;
+  border-radius: 5px;
+  padding: 10px;
+  font-size: 24px;
+  width: 80px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: right;
+}
+.description-box {
+  /* background-color: #20108a; */
+  /* color: #212121; */
+  padding: 10px;
+  font-size: 14px;
+  width: 80px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: left;
+}

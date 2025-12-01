@@ -1,4 +1,5 @@
 # ginnastix
+
 Data-driven gymnastics
 
 ## [Prerequisite] Google Sheets Setup
@@ -31,7 +32,7 @@ https://developers.google.com/workspace/sheets/api/quickstart/python
 - Use the `google_sheets.authenticate` method to manage authorization to the Google Sheets API
 - If the **ginnastix** app is in "testing" you will need to create a new client secret every 7 days
 - If the **ginnastix** app is in "production" your client secret has a longer life span
-- To configure the **ginnastix** app audience, go to: https://console.cloud.google.com/auth/audience?project=ginnastix 
+- To configure the **ginnastix** app audience, go to: https://console.cloud.google.com/auth/audience?project=ginnastix
 - When authorizing the **gynnastix** app in a web browser, you may see the warning "Google hasn’t verified this app"
-    - This is because the app is "in production" but not verified
-    - To bypass this warning, click "Advanced" >> "Go to ginnastix (unsafe)" >> "Continue"
+  - This is because the app is "in production" but not verified
+  - To bypass this warning, click "Advanced" >> "Go to ginnastix (unsafe)" >> "Continue"

@@ -1,6 +1,5 @@
 import os
 import pickle
-import sys
 from datetime import datetime
 
 import matplotlib.colors as mcolors
@@ -13,8 +12,8 @@ from dash import callback
 from dash import dcc
 from dash import html
 
-from utils.google_sheets import authenticate
-from utils.google_sheets import read_dataset
+from ginnastix_class.utils.google_sheets import authenticate
+from ginnastix_class.utils.google_sheets import read_dataset
 
 """
 REF
@@ -78,6 +77,36 @@ class DataReader:
             pickle.dump(df, f)
 
         return df
+
+
+def main(dataset_source="local"):
+    global DF
+
+    dr = DataReader(dataset_source)
+    DF = dr.df_attendance
+    dashboard_dir = os.path.dirname(os.path.abspath(__file__))
+    print(f"Dashboard path: {dashboard_dir}")
+    app = Dash(
+        __name__,
+        assets_folder=os.path.join(dashboard_dir, "assets"),
+        prevent_initial_callbacks="initial_duplicate",
+    )
+    app.layout = [
+        html.H1(children="Behavior Report", style={"textAlign": "center"}),
+        dcc.Dropdown(
+            sorted(DF["Athlete"].unique()),
+            "--",
+            id="dropdown-selection",
+            className="dropdown-selection",
+        ),
+        html.Div(
+            id="stats-summary-grid",
+            className="stats-summary-grid",
+            children=[],
+        ),
+        html.Div(id="overall-behavior-graph"),
+    ]
+    app.run(debug=True)
 
 
 def update_stats_box(df, column_name):
@@ -207,32 +236,4 @@ def get_overall_behavior_graph(value):
 
 
 if __name__ == "__main__":
-    global DF
-
-    dataset_source = "local"
-    try:
-        if "--clear-cache" in sys.argv:
-            dataset_source = "gsheets"
-    except Exception:
-        pass
-
-    dr = DataReader(dataset_source)
-    DF = dr.df_attendance
-
-    app = Dash(prevent_initial_callbacks="initial_duplicate")
-    app.layout = [
-        html.H1(children="Behavior Report", style={"textAlign": "center"}),
-        dcc.Dropdown(
-            sorted(DF["Athlete"].unique()),
-            "--",
-            id="dropdown-selection",
-            className="dropdown-selection",
-        ),
-        html.Div(
-            id="stats-summary-grid",
-            className="stats-summary-grid",
-            children=[],
-        ),
-        html.Div(id="overall-behavior-graph"),
-    ]
-    app.run(debug=True)
+    main()

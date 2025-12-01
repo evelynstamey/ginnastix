@@ -4,17 +4,19 @@ import pickle
 from datetime import datetime
 from functools import cached_property
 from functools import reduce
+from pathlib import Path
 
 import pandas as pd
 
-from utils.google_sheets import append_dataset_rows
-from utils.google_sheets import authenticate
-from utils.google_sheets import read_dataset
+from ginnastix_class.utils.google_sheets import append_dataset_rows
+from ginnastix_class.utils.google_sheets import authenticate
+from ginnastix_class.utils.google_sheets import read_dataset
 
 
 class SkillEvaluation:
     _credentials = None
     _data_dir = "data"
+    Path(_data_dir).mkdir(parents=True, exist_ok=True)
 
     def __init__(self, reference_dataset_source):
         self._source = reference_dataset_source

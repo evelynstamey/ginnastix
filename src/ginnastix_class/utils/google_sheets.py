@@ -7,12 +7,12 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
-from config.datasets import DATASETS
-from config.google_sheets import CREDENTIALS_FILE
-from config.google_sheets import SCOPES
-from config.google_sheets import TOKEN_FILE
-from utils.validation import standardize
-from utils.validation import validate_dataset
+from ginnastix_class.config.datasets import DATASETS
+from ginnastix_class.config.google_sheets import CREDENTIALS_FILE
+from ginnastix_class.config.google_sheets import SCOPES
+from ginnastix_class.config.google_sheets import TOKEN_FILE
+from ginnastix_class.utils.validation import standardize
+from ginnastix_class.utils.validation import validate_dataset
 
 
 def authenticate(credentials_file=None, token_file=None, scopes=None):

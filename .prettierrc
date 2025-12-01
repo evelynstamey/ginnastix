@@ -1,0 +1,4 @@
+overrides:
+  - files: ".prettierrc"
+    options:
+      parser: yaml
