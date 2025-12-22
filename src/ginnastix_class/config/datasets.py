@@ -28,9 +28,9 @@ DATASETS = {
         "schema": {
             "Event": {"index": 0},
             "Skill": {"index": 1},
-            "Variant": {"index": 2},
+            "Variant": {"index": 2, "is_nullable": True},
             "Skill Description": {"index": 3},
-            "Variant Description": {"index": 4},
+            "Variant Description": {"index": 4, "is_nullable": True},
             "Skill ID": {"index": 5},
             "Event Skill ID": {"index": 6},
             "XB": {"index": 7},

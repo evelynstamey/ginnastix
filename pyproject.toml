@@ -19,6 +19,8 @@ dependencies = [
 [dependency-groups]
 # uv add --dev ...
 dev = [
+    "ipykernel>=7.1.0",
+    "ipython>=9.8.0",
     "isort>=6.0.1",
     "pytest>=8.4.1",
     "ruff>=0.12.9",

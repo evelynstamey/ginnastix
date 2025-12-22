@@ -133,18 +133,18 @@ def read_dataset(dataset_name, credentials=None):
 
 
 def append_dataset_rows(dataset_name, df, credentials=None):
+    # Validate
     dataset_cfg = _get_dataset_config(dataset_name)
     df = standardize(df, dataset_cfg["schema"])
     validate_dataset(df, dataset_cfg["schema"])
-    df = df.astype(object).fillna("")  # prevent json serialization error
-    print(f"Writing data batch to Google Sheets (n={df.shape[0]})")
-    print("\n----------  data sample  ----------\n")
-    print(df.head())
-    print("...")
 
-    print("\n----------  data sample  ----------\n")
+    # Convert dataframe to JSON-serializable array
+    gsheet_body = _dataframe_to_gsheet_body(df)
+
+    # Write data
     credentials = credentials or authenticate()
     sheet = get_sheet(credentials)
+    print(f"Writing n={df.shape[0]} records to Google Sheets")
     result = (
         sheet.values()
         .append(
@@ -152,7 +152,7 @@ def append_dataset_rows(dataset_name, df, credentials=None):
             range=dataset_cfg["sheet_range"],
             valueInputOption="USER_ENTERED",
             insertDataOption="INSERT_ROWS",
-            body={"values": df.values.tolist()},
+            body=gsheet_body,
         )
         .execute()
     )
@@ -165,3 +165,21 @@ def _get_dataset_config(dataset_name):
     if not dataset:
         raise Exception(f"Dataset '{dataset_name}' not configured")
     return dataset
+
+
+def _dataframe_to_gsheet_body(df):
+    _df = df.copy()
+    _df = _df.fillna("").astype(str)  # prevent JSON serialization error
+    print("Preparing data batch for Google Sheets API")
+    print("\n----------  data sample  ----------\n")
+    print(_df.head())
+    print("...")
+    print("\n----------  data sample  ----------\n")
+    gsheet_body = {"values": _df.values.tolist()}
+    try:
+        json.dumps(gsheet_body)
+        return gsheet_body
+    except TypeError as e:
+        raise ValueError(
+            f"Failed to convert dataframe to JSON-serializable dictionary: {e}"
+        )

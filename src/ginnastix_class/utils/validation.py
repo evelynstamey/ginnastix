@@ -1,7 +1,5 @@
 import json
 
-import numpy as np
-
 
 def validate_dataset(df, schema):
     errors = dict()
@@ -28,9 +26,9 @@ def validate_dataset(df, schema):
 
         # Check column nulls
         is_nullable = spec.get("is_nullable", False)
-        _has_nulls = df[name].isnull().any()
-        if not is_nullable and _has_nulls:
-            message = f"Column '{name}' has missing values"
+        _isnull = df[name].isnull()
+        if not is_nullable and _isnull.any():
+            message = f"Column '{name}' has {int(_isnull.sum())} missing values"
             errors[name] = errors.get(name, []) + [message]
 
     if errors:
@@ -39,12 +37,13 @@ def validate_dataset(df, schema):
 
 
 def standardize(df, schema):
-    df = df.replace("", np.nan)
-    df = df.astype(
+    _df = df.copy()
+    _df = _df.replace("", None)
+    _df = _df.astype(
         {
             k: attr.get("dtype", "object")
             for k, attr in schema.items()
-            if k in df.columns
+            if k in _df.columns
         }
     )
-    return df
+    return _df

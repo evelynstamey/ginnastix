@@ -12,6 +12,8 @@ import pandas as pd
 from ginnastix_class.utils.google_sheets import append_dataset_rows
 from ginnastix_class.utils.google_sheets import authenticate
 from ginnastix_class.utils.google_sheets import read_dataset
+from ginnastix_class.utils.user_input import get_input
+from ginnastix_class.utils.user_input import get_input_from_df
 
 
 class Attendance:
@@ -96,7 +98,7 @@ class Attendance:
             dates.append(_date)
         dates = sorted(dates, key=lambda x: x[0], reverse=True)[0:max_display]
         dates.append(("OTHER", ""))
-        date_str, day = self.get_input_from_df(
+        date_str, day = get_input_from_df(
             df=pd.DataFrame(dates, columns=["Date", "Day"]),
             attr="Date",
             attr_desc="Day",
@@ -106,7 +108,7 @@ class Attendance:
             dt = datetime.strptime(date_str, "%m/%d/%Y")
         else:
             while True:
-                _input = self.get_input("What date?")
+                _input = get_input("What date?")
                 try:
                     dt = datetime.strptime(_input, "%m/%d/%Y")
                     date_str = dt.strftime("%m/%d/%Y")
@@ -218,20 +220,20 @@ class Attendance:
 
     def collect_attendance(self):
         print(f"Entering attendance information for {self.day} {self.date_str} ...")
-        absent_students = self.get_input(
+        absent_students = get_input(
             "Any absent students?", options=self.students, multi=True
         )
         present_students = sorted(list(set(self.students).difference(absent_students)))
-        late_students = self.get_input(
+        late_students = get_input(
             "Any late students?", options=present_students, multi=True
         )
-        unprepared_students = self.get_input(
+        unprepared_students = get_input(
             "Any unprepared students?", options=present_students, multi=True
         )
-        injured_students = self.get_input(
+        injured_students = get_input(
             "Any injured students?", options=present_students, multi=True
         )
-        problem_students = self.get_input(
+        problem_students = get_input(
             "Any students with behavioral issues?", options=present_students, multi=True
         )
 
@@ -253,11 +255,11 @@ class Attendance:
             if _student in injured_students:
                 _pf = "No"
             if _student in problem_students:
-                _kto = self.get_input("[Kind To Others]", options=options)
-                _lti = self.get_input("[Listened To Instructions]", options=options)
-                _ca = self.get_input("[Completed Assignments]", options=options)
-                _fm = self.get_input("[Focused Mindset]", options=options)
-                _pa = self.get_input("[Positive Attitude]", options=options)
+                _kto = get_input("[Kind To Others]", options=options)
+                _lti = get_input("[Listened To Instructions]", options=options)
+                _ca = get_input("[Completed Assignments]", options=options)
+                _fm = get_input("[Focused Mindset]", options=options)
+                _pa = get_input("[Positive Attitude]", options=options)
 
             values = [_ac, _ot, _p, _kto, _lti, _ca, _fm, _pa, _pf]
             summary = [
@@ -267,7 +269,7 @@ class Attendance:
             ]
             divider = "\n----------------------------\n"
             summary_text = "\n".join(summary) or "(perfect behavior)"
-            _notes = self.get_input(
+            _notes = get_input(
                 f"Any additional notes about {_student}?"
                 f"{divider}{summary_text}{divider}"
             )
@@ -324,7 +326,7 @@ class Attendance:
     def get_options_df(self, df, attr, attr_desc=None, select_values=None):
         _df = df.copy()
 
-        conditions = [_df[attr] != ""]
+        conditions = [~_df[attr].isnull()]  # TODO: revisit null handling
         if select_values:
             conditions.extend([_df[col] == val for col, val in select_values.items()])
         select_condition = reduce(lambda c1, c2: c1 & c2, conditions[1:], conditions[0])
@@ -338,51 +340,3 @@ class Attendance:
             _df["options"] = _df[attr]
 
         return _df
-
-    def get_input_from_df(self, prompt, df, attr, attr_desc=None, select_values=None):
-        df_options = self.get_options_df(df, attr, attr_desc, select_values)
-        options = df_options["options"].to_dict()
-        value = ""
-        value_desc = ""
-        if options:
-            _input = self.get_input(prompt, options)
-            df_selected_option = df_options[df_options["options"] == _input]
-            value = df_selected_option[attr].values[0]
-            if attr_desc:
-                value_desc = df_selected_option[attr_desc].values[0]
-        return value, value_desc
-
-    def get_input(self, prompt, options=None, multi=False):
-        while True:
-            try:
-                return self._get_input(prompt, options, multi)
-            except Exception as e:
-                print(f"Invalid input ({e})")
-
-    def _get_input(self, prompt, options=None, multi=False):
-        if options is None:
-            return input(f"\n{prompt}\n\n>>> ")
-
-        if isinstance(options, dict):
-            options_text = "\n".join(
-                f"  [{idx + 1}]: {val}" for idx, val in options.items()
-            )
-        else:
-            options_text = "\n".join(
-                f"  [{idx + 1}]: {val}" for idx, val in enumerate(options)
-            )
-
-        x = None
-        if options_text:
-            x = input(f"\n{prompt}\n{options_text}\n\n>>> ")
-
-        if multi:
-            if x:
-                return [options[int(i) - 1] for i in x.split(",")]
-            else:
-                return []
-        else:
-            if x:
-                return options[int(x) - 1]
-            else:
-                return ""
