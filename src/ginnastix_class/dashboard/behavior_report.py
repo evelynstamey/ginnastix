@@ -21,6 +21,17 @@ REF
     - https://plotly.com/python/line-charts/
 """
 
+
+def minmax_scaler(arr):
+    """Scales a numpy array to the range [0, 1] using min-max normalization."""
+    arr_min = np.min(arr)
+    arr_max = np.max(arr)
+    # Handle the case where the range is zero (all values are the same)
+    if arr_min == arr_max:
+        return np.zeros_like(arr, dtype=float)
+    return (arr - arr_min) / (arr_max - arr_min)
+
+
 BEHAVIOR_ATTRIBUTES = [
     "On Time",
     "Prepared",
@@ -35,10 +46,11 @@ THRESHOLD = 90
 samples = 101
 cmap = mcolors.LinearSegmentedColormap.from_list(
     "custom_linear_cmap",
-    ["#f04f0a"] * 10 + ["#e89e1e"] * 3 + ["#abb53f"] * 2 + ["#208c6f"],
+    # ["#f04f0a"] * 10 + ["#e89e1e"] * 3 + ["#abb53f"] * 2 + ["#208c6f"],
+    ["#f04f0a"] * 3 + ["#e89e1e"] * 1 + ["#abb53f"] * 1 + ["#208c6f"],
     N=samples,
 )
-values = [cmap(i)[:3] for i in np.linspace(0, 1, samples)]
+values = [cmap(i)[:3] for i in minmax_scaler(np.logspace(0, 1, samples, base=10))]
 RGB = [f"rgb({int(r * 255)},{int(g * 255)},{int(b * 255)})" for r, g, b in values]
 
 
@@ -174,16 +186,16 @@ def get_overall_behavior_graph(value):
     dff = DF[DF["Athlete"] == value]
     dff = dff.sort_values(by="Dt").reset_index(drop=True)
     dff["Behavior Score (%)"] = dff["Overall Behavior Score"].apply(
-        lambda x: np.round(x, 2) * 100
+        lambda x: np.round(x * 100, 2)
     )
     dff["bar_color"] = (
         dff["Behavior Score (%)"]
-        .astype("Int64")
+        .astype("Float64")
         .apply(lambda x: "rgb(0,0,0)" if not x >= 0 else RGB[int(x)])
     )
-    dff["bar_color2"] = dff["Behavior Score (%)"].astype("Int64").apply(get_color)
-    student_mean = dff["Overall Behavior Score"].mean()
-    student_mean = int(round(student_mean * 100, 0))
+    dff["bar_color2"] = dff["Behavior Score (%)"].astype("Float64").apply(get_color)
+    student_mean = dff["Overall Behavior Score"].mean() * 100
+    # student_mean = round(student_mean * 100, 2)
 
     fig = go.Figure()
     fig.add_trace(
@@ -212,7 +224,7 @@ def get_overall_behavior_graph(value):
                 color="black" if student_mean >= THRESHOLD else "#f04f0a",
                 width=2,
             ),
-            name=f"Average Score ({student_mean}%)",
+            name=f"Average Score ({student_mean:.2f}%)",
         )
     )
 
