@@ -8,9 +8,7 @@ GOOD_COLOR = "#208c6f"
 
 
 def minmax_scaler(x, from_range=None, to_range=None, trim=False):
-    """Scales a numpy array to the range [a, b] using min-max normalization.
-    Ref: https://en.wikipedia.org/wiki/Feature_scaling#Rescaling_(min-max_normalization)
-    """
+    """Apply min-max normalization to an array or single value."""
     _min = np.nanmin(x)
     _max = np.nanmax(x)
     from_range = from_range or (_min, _max)
