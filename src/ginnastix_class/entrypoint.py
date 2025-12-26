@@ -1,6 +1,6 @@
 import click
 
-from ginnastix_class.dashboard.behavior_report import main
+from ginnastix_class.dashboard.behavior_report.main import main
 from ginnastix_class.data_entry.enter_attendance import Attendance
 from ginnastix_class.data_entry.enter_skills import SkillEvaluation
 
@@ -29,6 +29,7 @@ def attendance(clear_cache, resume_data_entry):
 
 @cli.command()
 @click.option("--clear-cache", is_flag=True)
-def behavior_report(clear_cache):
+@click.option("--debug", is_flag=True)
+def behavior_report(clear_cache, debug):
     reference_dataset_source = "gsheets" if clear_cache else "local"
-    main(reference_dataset_source)
+    main(reference_dataset_source, debug)
