@@ -1,0 +1,114 @@
+body {
+  margin: 40px;
+  width: 1000px;
+  font-family: "Open Sans", verdana, arial, sans-serif;
+}
+.date-range-slider {
+  width: 800px;
+  padding: 10px 0 50px 25px !important;
+  /* background-color: violet; */
+}
+.rc-slider-handle {
+  border: solid 2px #00e6f2;
+}
+.rc-slider-handle-click-focused:focus {
+  border: solid 2px #00e6f2;
+}
+.rc-slider-handle:hover {
+  border: solid 2px #00e6f2;
+}
+.rc-slider-handle-dragging.rc-slider-handle-dragging.rc-slider-handle-dragging {
+  border-color: #00e6f2;
+  box-shadow: 0 0 0 5px #00e6f2;
+}
+
+.rc-slider-track {
+  background-color: #00e6f2;
+}
+.rc-slider-dot-active {
+  border-color: #00e6f2;
+}
+.rc-slider-dot-active {
+  border-color: #00e6f2;
+}
+.athlete-name-dropdown {
+  width: 840px;
+  padding: 10px 0;
+}
+.headline-stats-summary-grid {
+  display: grid;
+  grid-gap: 10px 10px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  color: #444;
+  width: 840px;
+  padding: 20px 0 10px 0;
+  /* background-color: violet; */
+}
+.headline-stats-summary-cell {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+  color: #868211;
+  /* background-color: blue; */
+}
+.headline-stats-box {
+  padding: 5px 5px;
+  font-size: 28px;
+  width: 90px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  color: #fff;
+  /* background-color: greenyellow; */
+}
+.headline-description-box {
+  padding: 5px 0;
+  margin: 0 0 0 10px;
+  font-size: 14px;
+  width: 90px;
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: left;
+  color: black;
+  /* background-color: blueviolet; */
+}
+.stats-summary-grid {
+  display: grid;
+  grid-gap: 10px 10px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  color: #444;
+  width: 840px;
+  padding: 20px 0 10px 0;
+  /* background-color: red; */
+}
+.stats-summary-cell {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  color: black;
+  /* background-color: blue; */
+}
+.stats-box {
+  padding: 0 5px;
+  font-size: 20px;
+  width: 60px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: right;
+  border-radius: 5px;
+  color: #fff;
+  /* background-color: greenyellow; */
+}
+.description-box {
+  margin: 0 0 0 10px;
+  font-size: 12px;
+  width: 125px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: left;
+  /* color: orange; */
+  /* background-color: blueviolet; */
+}

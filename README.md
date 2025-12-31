@@ -8,8 +8,9 @@ Data-driven gymnastics
 2. Enable the API Google Sheets API
 3. Configure the OAuth consent screen
 4. Authorize credentials for a desktop application
+5. Generate client secret and download JSON to `credentials.json`
 
-https://developers.google.com/workspace/sheets/api/quickstart/python
+Ref: https://developers.google.com/workspace/sheets/api/quickstart/python
 
 ## Local Setup
 
@@ -19,15 +20,17 @@ https://developers.google.com/workspace/sheets/api/quickstart/python
 4. Run `mise run test`
 5. Run `mise run format`
 
-## Rotating Client Secrets
+## App Authorization
+
+### Generate client secrets
 
 1. Go to https://console.cloud.google.com/auth/clients/236291344840-vdd3f9t32k8svbv3mrfvna1vkil41vt8.apps.googleusercontent.com?project=ginnastix
 2. Click "Add secret"
 3. Click "Download JSON"
-4. Copy downloaded JSON to `credentials.json`
-5. Click "Disable" on old secret
+4. Copy downloaded file to `credentials.json`
+5. Click "Disable" on old secret (if exists)
 
-### App Authorization Notes
+### Other notes
 
 - Use the `google_sheets.authenticate` method to manage authorization to the Google Sheets API
 - If the **ginnastix** app is in "testing" you will need to create a new client secret every 7 days
@@ -36,3 +39,26 @@ https://developers.google.com/workspace/sheets/api/quickstart/python
 - When authorizing the **gynnastix** app in a web browser, you may see the warning "Google hasn’t verified this app"
   - This is because the app is "in production" but not verified
   - To bypass this warning, click "Advanced" >> "Go to ginnastix (unsafe)" >> "Continue"
+
+## Usage
+
+In `pyproject.toml` we configure the script:
+
+```
+[project.scripts]
+ginnastix-class = "ginnastix_class.entrypoint:cli"
+```
+
+### Example usage
+
+```
+ginnastix-class attendance
+```
+
+```
+ginnastix-class skills
+```
+
+```
+ginnastix-class behavior-report
+```

@@ -5,6 +5,8 @@ VERY_BAD_COLOR = "#f04f0a"
 BAD_COLOR = "#e89e1e"
 OK_COLOR = "#abb53f"
 GOOD_COLOR = "#208c6f"
+POSITIVE_ACCENT = "#00e6f2"
+NEGATIVE_ACCENT = "#f02d0a"
 
 
 def minmax_scaler(x, from_range=None, to_range=None, trim=False):

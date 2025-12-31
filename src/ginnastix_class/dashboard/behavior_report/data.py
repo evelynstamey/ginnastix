@@ -35,15 +35,17 @@ class DataReader:
         return self._credentials
 
     @property
-    def behavior_attributes(self):
+    def behavior_columns(self):
         return [
-            "On Time",
-            "Prepared",
-            "Kind To Others",
-            "Listened To Instructions",
-            "Completed Assignments",
-            "Focused Mindset",
-            "Positive Attitude",
+            "Attended Class Score",
+            "On Time Score",
+            "Prepared Score",
+            "Kind To Others Score",
+            "Listened To Instructions Score",
+            "Completed Assignments Score",
+            "Focused Mindset Score",
+            "Positive Attitude Score",
+            "Overall Behavior Score",
         ]
 
     def read_reference_dataset(self, name):
@@ -66,8 +68,7 @@ class DataReader:
 
     def _validate(self, df):
         errors = []
-        for c in self.behavior_attributes + ["Overall Behavior"]:
-            col_name = f"{c} Score"
+        for col_name in self.behavior_columns:
             min_val = df[col_name].min()
             max_val = df[col_name].max()
             if min_val < 0:
