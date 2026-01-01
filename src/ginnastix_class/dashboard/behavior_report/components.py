@@ -168,6 +168,7 @@ def get_overall_behavior_graph(
             if student_mean < expected_threshold
             else POSITIVE_ACCENT,
             width=2,
+            dash="dot",
         ),
         name=f"{athlete_name.split(' ')[0]} Average ({student_mean:.0f}%)",
         showlegend=True,
@@ -185,8 +186,7 @@ def get_overall_behavior_graph(
         font=dict(color="black"),
         margin=dict(l=0, r=0),
         xaxis_title="Class Day",
-        # yaxis_title="Score (%)",
-        xaxis={"showgrid": False, "showticklabels": False},
+        xaxis=dict(tickson="boundaries", ticklen=20),
         yaxis_range=[-5, 105],
         yaxis={"showgrid": False, "showticklabels": True},
         bargap=0,

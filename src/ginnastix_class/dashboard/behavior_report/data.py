@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 from datetime import datetime
+from datetime import timedelta
 
 from ginnastix_class.dashboard.color import map_color
 from ginnastix_class.utils.google_sheets import authenticate
@@ -77,3 +78,20 @@ class DataReader:
                 errors.append(f"Maximum value in column '{col_name}' is greater than 1")
         if errors:
             raise ValueError(json.dumps(errors, indent=2))
+
+
+def get_date_list():
+    today = datetime.now()
+    past_days = [
+        (today - timedelta(days=i)).replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+        for i in range(365)
+    ]
+    future_days = [
+        (today + timedelta(days=i)).replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+        for i in range(32)
+    ]
+    return sorted(list(set(past_days + future_days)))

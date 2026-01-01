@@ -3,6 +3,52 @@ body {
   width: 1000px;
   font-family: "Open Sans", verdana, arial, sans-serif;
 }
+h1 {
+  margin: 0;
+  padding: 5px 0 0 0;
+  font-size: 44px;
+}
+.container-flex {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 20px;
+  width: 880px;
+  height: 70px;
+  /* background-color: red; */
+}
+.container-flex-item {
+  flex: 1;
+  display: inline;
+  /* background-color: green; */
+}
+.Select-control {
+  background-color: none;
+  border: none;
+  /* background-color: blue; */
+}
+.Select--single > .Select-control .Select-value,
+.Select-placeholder {
+  line-height: 70px;
+  /* background-color: orange; */
+}
+.Select-input {
+  height: 70px;
+  padding-left: 10px;
+  padding-right: 10px;
+  vertical-align: middle;
+  /* background-color: yellow; */
+}
+.has-value.Select--single > .Select-control .Select-value .Select-value-label,
+.has-value.is-pseudo-focused.Select--single
+  > .Select-control
+  .Select-value
+  .Select-value-label {
+  font-size: 36px;
+}
+.is-focused:not(.is-open) > .Select-control {
+  border-color: none;
+  box-shadow: none;
+}
 .date-range-slider {
   width: 800px;
   padding: 10px 0 50px 25px !important;
@@ -30,10 +76,6 @@ body {
 }
 .rc-slider-dot-active {
   border-color: #00e6f2;
-}
-.athlete-name-dropdown {
-  width: 840px;
-  padding: 10px 0;
 }
 .headline-stats-summary-grid {
   display: grid;
