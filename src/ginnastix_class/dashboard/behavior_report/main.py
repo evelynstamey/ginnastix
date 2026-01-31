@@ -44,7 +44,7 @@ def main(dataset_source="local", debug=False):
                 # Dashboard title
                 html.Div(
                     [
-                        html.H1(children="Behavior Report"),
+                        html.H1(children="Progress Report"),
                     ],
                     className="container-flex-item",
                 ),
