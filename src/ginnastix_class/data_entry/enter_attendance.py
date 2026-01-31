@@ -94,12 +94,12 @@ class Attendance:
         # TODO: clean up
         max_display = 6
         dates = []
-        for _date, _ in self.class_days.groupby(["Date", "Day"]):
+        for _date, _ in self.class_days.groupby(["Date", "Day", "DT"]):
             dates.append(_date)
-        dates = sorted(dates, key=lambda x: x[0], reverse=True)[0:max_display]
-        dates.append(("OTHER", ""))
+        dates = sorted(dates, key=lambda x: x[2], reverse=True)[0:max_display]
+        dates.append(("OTHER", "", None))
         date_str, day = get_input_from_df(
-            df=pd.DataFrame(dates, columns=["Date", "Day"]),
+            df=pd.DataFrame(dates, columns=["Date", "Day", "DT"]),
             attr="Date",
             attr_desc="Day",
             prompt="Enter your date",
