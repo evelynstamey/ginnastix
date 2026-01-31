@@ -1,22 +1,24 @@
 from functools import reduce
 
+from prompt_toolkit import prompt
 
-def get_input(prompt, options=None, multi=False):
+
+def get_input(instruction, options=None, multi=False):
     attempt = 0
     while attempt < 4:
         if attempt > 0:
             print("Please try again")
         try:
-            return _get_input(prompt, options, multi)
+            return _get_input(instruction, options, multi)
         except Exception as e:
             print(f"Could not process input ({e})")
             attempt += 1
     raise ValueError("Aborting: Too many errors")
 
 
-def _get_input(prompt, options=None, multi=False):
+def _get_input(instruction, options=None, multi=False):
     if options is None:
-        return input(f"\n{prompt}\n\n>>> ")
+        return prompt(f"\n{instruction}\n\n>>> ")
 
     if isinstance(options, dict):
         options_text = "\n".join(
@@ -29,7 +31,7 @@ def _get_input(prompt, options=None, multi=False):
 
     x = None
     if options_text:
-        x = input(f"\n{prompt}\n{options_text}\n\n>>> ")
+        x = prompt(f"\n{instruction}\n{options_text}\n\n>>> ")
 
     try:
         if multi:
@@ -46,13 +48,13 @@ def _get_input(prompt, options=None, multi=False):
         raise ValueError(f"Invalid input: {x}") from e
 
 
-def get_input_from_df(prompt, df, attr, attr_desc=None, select_values=None):
+def get_input_from_df(instruction, df, attr, attr_desc=None, select_values=None):
     df_options = _get_options_df(df, attr, attr_desc, select_values)
     options = df_options["options"].to_dict()
     value = None
     value_desc = None
     if options:
-        _input = get_input(prompt, options, multi=False)
+        _input = get_input(instruction, options, multi=False)
         df_selected_option = df_options[df_options["options"] == _input]
         value = df_selected_option[attr].values[0]
         if attr_desc:

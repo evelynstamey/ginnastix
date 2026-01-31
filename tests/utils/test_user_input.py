@@ -1,4 +1,3 @@
-import builtins
 from unittest import mock
 
 import pandas as pd
@@ -50,16 +49,16 @@ def null_options_df():
     return df
 
 
-@mock.patch.object(builtins, "input")
-def test__get_input__default(m_input):
-    prompt = "hi"
-    m_input.return_value = "2"
-    assert get_input(prompt) == "2"
-    m_input.assert_called_with("\nhi\n\n>>> ")
+@mock.patch("ginnastix_class.utils.user_input.prompt")
+def test__get_input__default(m_prompt):
+    instruction = "hi"
+    m_prompt.return_value = "2"
+    assert get_input(instruction) == "2"
+    m_prompt.assert_called_with("\nhi\n\n>>> ")
 
 
 @pytest.mark.parametrize(
-    "prompt, options, multi, user_prompt, user_input, out",
+    "instruction, options, multi, user_prompt, user_input, out",
     [
         # take exact user input (no options, no multi-select)
         ("hi", None, False, "\nhi\n\n>>> ", "a", "a"),
@@ -98,30 +97,30 @@ def test__get_input__default(m_input):
         ),
     ],
 )
-@mock.patch.object(builtins, "input")
+@mock.patch("ginnastix_class.utils.user_input.prompt")
 def test__get_input__advanced(
-    m_input, prompt, options, multi, user_prompt, user_input, out
+    m_prompt, instruction, options, multi, user_prompt, user_input, out
 ):
-    m_input.return_value = user_input
-    assert get_input(prompt, options=options, multi=multi) == out
-    m_input.assert_called_with(user_prompt)
+    m_prompt.return_value = user_input
+    assert get_input(instruction, options=options, multi=multi) == out
+    m_prompt.assert_called_with(user_prompt)
 
 
 @pytest.mark.parametrize(
-    "prompt, options, multi, user_prompt, user_input",
+    "instruction, options, multi, user_prompt, user_input",
     [
         ("hi", {0: "a", 1: "b"}, True, "\nhi\n  [1]: a\n  [2]: b\n\n>>> ", "2,3"),
     ],
 )
-@mock.patch.object(builtins, "input")
+@mock.patch("ginnastix_class.utils.user_input.prompt")
 def test__get_input__bad_input(
-    m_input, prompt, options, multi, user_prompt, user_input
+    m_prompt, instruction, options, multi, user_prompt, user_input
 ):
-    m_input.return_value = user_input
+    m_prompt.return_value = user_input
     with pytest.raises(ValueError) as e:
-        get_input(prompt, options=options, multi=multi)
+        get_input(instruction, options=options, multi=multi)
     assert e.value.args[0] == "Aborting: Too many errors"
-    assert m_input.call_count == 4
+    assert m_prompt.call_count == 4
 
 
 def test__get_options_df__0(options_df):
@@ -218,11 +217,11 @@ def test__get_options_df__5(null_options_df):
         ("3", 6, 6),
     ],
 )
-@mock.patch.object(builtins, "input")
+@mock.patch("ginnastix_class.utils.user_input.prompt")
 def test_get_input_from_df(
-    m_input, user_input, out_value, out_value_desc, null_options_df
+    m_prompt, user_input, out_value, out_value_desc, null_options_df
 ):
-    m_input.return_value = user_input
+    m_prompt.return_value = user_input
     value, value_desc = get_input_from_df("foo", null_options_df, "attr", "attr_desc")
     assert value == out_value
     assert value_desc == out_value_desc

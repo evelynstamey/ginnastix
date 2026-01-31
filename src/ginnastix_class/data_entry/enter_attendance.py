@@ -102,7 +102,7 @@ class Attendance:
             df=pd.DataFrame(dates, columns=["Date", "Day", "DT"]),
             attr="Date",
             attr_desc="Day",
-            prompt="Enter your date",
+            instruction="Enter your date",
         )
         if date_str != "OTHER":
             dt = datetime.strptime(date_str, "%m/%d/%Y")

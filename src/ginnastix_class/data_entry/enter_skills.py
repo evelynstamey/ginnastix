@@ -7,6 +7,7 @@ from functools import reduce
 from pathlib import Path
 
 import pandas as pd
+from prompt_toolkit import prompt
 
 from ginnastix_class.utils.google_sheets import append_dataset_rows
 from ginnastix_class.utils.google_sheets import authenticate
@@ -61,7 +62,7 @@ class SkillEvaluation:
             df=self.df_levels,
             attr="Level",
             attr_desc="Level Description",
-            prompt="Enter your student level",
+            instruction="Enter your student level",
         )
         df_active_students = self.df_student_classes[
             self.df_student_classes["Stop"].isna()
@@ -154,7 +155,7 @@ class SkillEvaluation:
                 df=self.df_events,
                 attr="Event",
                 attr_desc="Event Description",
-                prompt="Enter your event",
+                instruction="Enter your event",
             )
 
             # skill
@@ -163,7 +164,7 @@ class SkillEvaluation:
                 attr="Skill",
                 attr_desc="Skill Description",
                 select_values={"Event": _event},
-                prompt=f"Enter your {_event_desc} skill",
+                instruction=f"Enter your {_event_desc} skill",
             )
 
             # skill variant
@@ -172,7 +173,7 @@ class SkillEvaluation:
                 attr="Variant",
                 attr_desc="Variant Description",
                 select_values={"Event": _event, "Skill": _event_skill},
-                prompt=f"Enter your skill variant for {_event_skill_desc}",
+                instruction=f"Enter your skill variant for {_event_skill_desc}",
             )
 
             # get stats
@@ -185,7 +186,7 @@ class SkillEvaluation:
             for _student in _students:
                 # Get score (if given)
                 while True:
-                    _score = input(f"{_student} >>> ")
+                    _score = prompt(f"{_student} >>> ")
                     is_valid_input = False
                     try:
                         _score = float(_score)

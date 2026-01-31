@@ -375,6 +375,7 @@ dependencies = [
     { name = "google-auth-oauthlib" },
     { name = "matplotlib" },
     { name = "pandas" },
+    { name = "prompt-toolkit" },
 ]
 
 [package.dev-dependencies]
@@ -398,6 +399,7 @@ requires-dist = [
     { name = "google-auth-oauthlib", specifier = ">=1.2.2" },
     { name = "matplotlib", specifier = ">=3.10.7" },
     { name = "pandas", specifier = ">=2.3.1" },
+    { name = "prompt-toolkit", specifier = ">=3.0.52" },
 ]
 
 [package.metadata.requires-dev]
