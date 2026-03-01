@@ -159,8 +159,10 @@ class SkillEvaluation:
             )
 
             # skill
+            # TODO #1: show only the skills that are relevant for the
+            # selected students (because the list is getting long)
             _event_skill, _event_skill_desc = get_input_from_df(
-                df=self.df_skills,
+                df=self.df_skills.sort_values(by=["Skill"]),
                 attr="Skill",
                 attr_desc="Skill Description",
                 select_values={"Event": _event},
