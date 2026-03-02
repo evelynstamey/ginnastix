@@ -27,7 +27,8 @@ class SkillEvaluation:
         self.df_periods = self.read_reference_dataset("periods")
         self.df_levels = self.read_reference_dataset("levels")
         self.df_events = self.read_reference_dataset("events")
-        self.df_skills = self.read_reference_dataset("skills")
+        # self.df_skills = self.read_reference_dataset("skills")
+        self.df_skills = self.read_reference_dataset("skills_v2")
         self.df_student_classes = self.read_reference_dataset("student_classes")
         self.df_student_levels = self.read_reference_dataset("student_levels")
 

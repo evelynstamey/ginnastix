@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from ginnastix_class.utils.google_sheets import append_dataset_rows
 from ginnastix_class.utils.google_sheets import authenticate
 from ginnastix_class.utils.google_sheets import read_dataset
 
@@ -51,7 +52,7 @@ def upgrade_status(row):
     return "; ".join(status_summaries)
 
 
-def read_reference_dataset(name, data_dir="data", source="gsheets", credentials=None):
+def read_reference_dataset(name, data_dir="data", source="local", credentials=None):
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     file_name = os.path.join(data_dir, f"{name}.pkl")
     if source == "local":
@@ -71,47 +72,122 @@ def read_reference_dataset(name, data_dir="data", source="gsheets", credentials=
     return df
 
 
+def skill_description(s):
+    ignore = [None, ""]
+    names = [s["Skill Description"], s["Variant Description"]]
+    if names[1] in ignore:
+        return str(names[0])
+    else:
+        return str(names[0]) + " - " + str(names[1])
+
+
 def main():
     ######################################################## Data
-    default_routines_df = read_reference_dataset("default_routines")  # noqa
-    preseason_testout_df = read_reference_dataset("preseason_testout") # noqa
-    custom_routines_df = read_reference_dataset("custom_routines") # noqa
+    # Raw datasets
+    levels_df = read_reference_dataset("levels")
+    default_routines_df = read_reference_dataset("default_routines")
+    preseason_testout_df = read_reference_dataset("preseason_testout")
+    custom_routines_df = read_reference_dataset("custom_routines")
     skill_evaluation_df = read_reference_dataset("skill_evaluation")
+    skills_df = read_reference_dataset("skills_v2")  # noqa
     meet_scores_df = read_reference_dataset("meet_scores")
 
-    ################################ TODO: Refactor "routine upgrade"
-    xs_bb_ug = [("D1", "D2"), ("A1", "A2")]
-    xs_ub_ug = [("D1", "D2"), ("C1", "C2")]
-    xb_bb_ug = [("D1", "D2"), ("J1", "J2"), ("D2", "D3"), ("D3", "D4"), ("A1", "A2")]
-    xb_ub_ug = [("D1", "D2"), ("D2", "D3")]
-    routine_upgrades_df = pd.DataFrame(
-        {
-            "Level": ["XS"] * len(xs_bb_ug + xs_ub_ug)
-            + ["XB"] * len(xb_bb_ug + xb_ub_ug),
-            "Event": ["Beam"] * len(xs_bb_ug)
-            + ["Bars"] * len(xs_ub_ug)
-            + ["Beam"] * len(xb_bb_ug)
-            + ["Bars"] * len(xb_ub_ug),
-            "Event Routine": list(range(len(xs_bb_ug)))
-            + list(range(len(xs_ub_ug)))
-            + list(range(len(xb_bb_ug)))
-            + list(range(len(xb_ub_ug))),
-            "Skill to Upgrade": [i for i, _ in xs_bb_ug]
-            + [i for i, _ in xs_ub_ug]
-            + [i for i, _ in xb_bb_ug]
-            + [i for i, _ in xb_ub_ug],
-            "Upgrade Skill": [j for _, j in xs_bb_ug]
-            + [j for _, j in xs_ub_ug]
-            + [j for _, j in xb_bb_ug]
-            + [j for _, j in xb_ub_ug],
-        }
-    )
-    routine_upgrades_df.sort_values(["Level", "Event", "Event Routine"])
-
-    ################################ TODO: Refactor "custom upgrades"
-    custom_routine_sequence = {"Kristy": {"Bars": {0: ("D2", "D1")}}}
+    # Derived datasets
+    athlete_df = meet_scores_df[["Level", "Athlete"]].drop_duplicates()
 
     ######################################################## Transform
+
+    # Get all default athlete routines
+    _athlete_routines_dfs = []
+    for level in levels_df["Level"]:
+        _athlete_routines_dfs.append(
+            pd.merge(
+                athlete_df[athlete_df["Level"] == level][["Athlete"]],
+                default_routines_df[default_routines_df["Level"] == level],
+                how="cross",
+            )
+        )
+    athlete_routines_df = pd.concat(_athlete_routines_dfs, axis=0, ignore_index=True)
+
+    # Patch default routines with custom routines
+    athlete_routines_df.rename(
+        columns={"Default Upgrade Order": "Upgrade Order"}, inplace=True
+    )
+    custom_routines_df.rename(
+        columns={"Custom Upgrade Order": "Upgrade Order"}, inplace=True
+    )
+    custom_routines_df.drop(columns="Notes", inplace=True)
+    for (
+        _athlete,
+        _event,
+        _level,
+    ), _custom_athlete_routines_df in custom_routines_df.groupby(
+        ["Athlete", "Level", "Event"]
+    ):
+        _default_athlete_routines_df = athlete_routines_df[
+            (athlete_routines_df["Athlete"] == _athlete)
+            & (athlete_routines_df["Level"] == _event)
+            & (athlete_routines_df["Event"] == _level)
+        ]
+        _indices_to_drop = _default_athlete_routines_df.index
+        athlete_routines_df.drop(_indices_to_drop, inplace=True)
+        athlete_routines_df = pd.concat(
+            [athlete_routines_df, _custom_athlete_routines_df],
+            axis=0,
+            ignore_index=True,
+        )
+
+    # Patch default routines with preseason test-outs
+    for (_athlete, _event, _level), _testout_skills_df in preseason_testout_df.groupby(
+        ["Athlete", "Level", "Event"]
+    ):
+        _testout_skills = _testout_skills_df["Skill ID"].to_list()
+        _athlete_routines_df = athlete_routines_df[
+            (athlete_routines_df["Athlete"] == _athlete)
+            & (athlete_routines_df["Level"] == _event)
+            & (athlete_routines_df["Event"] == _level)
+        ].copy()
+        _indices_to_drop = _athlete_routines_df.index
+
+        _athlete_routines_df["_idx"] = _athlete_routines_df.apply(
+            lambda row: (
+                pd.NA
+                if row["Skill ID"] in _testout_skills
+                else row["Skill Rank In Category"]
+            ),
+            axis=1,
+        )
+        _athlete_routines_df["_idx_min"] = _athlete_routines_df.groupby(
+            ["Level", "Event", "Routine Skill Category ID"]
+        )["_idx"].transform("min")
+        _athlete_routines_df["_idx_diff"] = (
+            _athlete_routines_df["_idx"] - _athlete_routines_df["_idx_min"]
+        )
+
+        _athlete_routines_df["_testout_upgrade_order"] = _athlete_routines_df.apply(
+            lambda row: row["Upgrade Order"]
+            if not pd.isna(row["_idx_diff"]) and row["_idx_diff"] > 0
+            else row["_idx_diff"],
+            axis=1,
+        )
+        _athlete_routines_df["_testout_upgrade_order"] = (
+            _athlete_routines_df["_testout_upgrade_order"].rank(method="dense") - 1
+        ).astype(pd.Int32Dtype())
+
+        _athlete_routines_df.drop(columns="Upgrade Order", inplace=True)
+        _athlete_routines_df.rename(
+            columns={"_testout_upgrade_order": "Upgrade Order"}, inplace=True
+        )
+        _athlete_routines_df = _athlete_routines_df[
+            [c for c in _athlete_routines_df.columns if not c.startswith("_")]
+        ]
+
+        athlete_routines_df.drop(_indices_to_drop, inplace=True)
+        athlete_routines_df = pd.concat(
+            [athlete_routines_df, _athlete_routines_df], axis=0, ignore_index=True
+        )
+
+    # reshape scores
     scores_long = pd.melt(
         meet_scores_df,
         id_vars=["Meet", "Level", "Athlete"],
@@ -130,68 +206,101 @@ def main():
     routine_scores_long = pd.merge(
         scores_long, routine_long, on=["Meet", "Level", "Athlete", "Event"], how="inner"
     )
-    athlete_df = routine_scores_long[["Level", "Athlete"]].drop_duplicates()
-    xs_athlete_routine_cross = pd.merge(
-        athlete_df[athlete_df["Level"] == "XS"][["Athlete"]],
-        routine_upgrades_df[routine_upgrades_df["Level"] == "XS"],
-        how="cross",
+
+    # Make "current" and "upgrade" skill pairs for each routine
+    athlete_routines_df["_has_zero_skill"] = athlete_routines_df.groupby(
+        ["Athlete", "Level", "Event", "Routine Skill Category ID"]
+    )["Upgrade Order"].transform(
+        lambda x: any([i == 1 if not pd.isna(i) else False for i in x])
     )
-    xb_athlete_routine_cross = pd.merge(
-        athlete_df[athlete_df["Level"] == "XB"][["Athlete"]],
-        routine_upgrades_df[routine_upgrades_df["Level"] == "XB"],
-        how="cross",
+
+    drop_records_df = athlete_routines_df[
+        (
+            (athlete_routines_df["Upgrade Order"] == 0)
+            & ~(athlete_routines_df["_has_zero_skill"])
+        )
+        | (athlete_routines_df["Upgrade Order"].isna())
+    ]
+    simplified_df = athlete_routines_df.drop(drop_records_df.index).reset_index(
+        drop=True
     )
-    athlete_routine_cross = pd.concat(
-        [xs_athlete_routine_cross, xb_athlete_routine_cross], axis=0
+    simplified_df["n+1"] = simplified_df["Upgrade Order"] + 1
+
+    simplified_df = pd.merge(
+        simplified_df,
+        skills_df[["Skill ID", "Skill Description", "Variant Description"]],
+        on="Skill ID",
+        how="left",
     )
-    athlete_routine_cross["Custom Skill to Upgrade"] = None
-    athlete_routine_cross["Custom Upgrade Skill"] = None
-    athlete_routine_cross = athlete_routine_cross.rename(
+    simplified_df["Skill Name"] = simplified_df.apply(skill_description, axis=1)
+
+    skill_pairs_df = (
+        pd.merge(
+            simplified_df[
+                [
+                    "Athlete",
+                    "Level",
+                    "Event",
+                    "Upgrade Order",
+                    "n+1",
+                    "Skill ID",
+                    "Skill Name",
+                ]
+            ],
+            simplified_df[
+                [
+                    "Athlete",
+                    "Level",
+                    "Event",
+                    "Upgrade Order",
+                    "n+1",
+                    "Skill ID",
+                    "Skill Name",
+                ]
+            ],
+            right_on=["Athlete", "Level", "Event", "Upgrade Order"],
+            left_on=["Athlete", "Level", "Event", "n+1"],
+            how="inner",
+            suffixes=("", "+1"),
+        )
+        .sort_values(["Athlete", "Level", "Event", "Upgrade Order"])
+        .reset_index(drop=True)
+    )
+    skill_pairs_df = skill_pairs_df[
+        [
+            "Athlete",
+            "Level",
+            "Event",
+            "Upgrade Order",
+            "Skill ID",
+            "Skill Name",
+            "Skill ID+1",
+            "Skill Name+1",
+        ]
+    ]
+    skill_pairs_df.rename(  # routine_upgrades_df
         columns={
-            "Skill to Upgrade": "Default Skill to Upgrade",
-            "Upgrade Skill": "Default Upgrade Skill",
-        }
+            "Upgrade Order": "Event Routine",
+            "Skill Name": "Current Skill",
+            "Skill Name+1": "Upgrade Skill",
+            "Skill ID": "Current Skill ID",
+            "Skill ID+1": "Upgrade Skill ID",
+        },
+        inplace=True,
     )
-    for athlete, events in custom_routine_sequence.items():
-        for event, updates in events.items():
-            for routine_id, (from_skill, to_skill) in updates.items():
-                athlete_routine_cross.loc[
-                    (athlete_routine_cross["Athlete"] == athlete)
-                    & (athlete_routine_cross["Event"] == event)
-                    & (athlete_routine_cross["Event Routine"] == routine_id),
-                    "Custom Skill to Upgrade",
-                ] = from_skill
-                athlete_routine_cross.loc[
-                    (athlete_routine_cross["Athlete"] == athlete)
-                    & (athlete_routine_cross["Event"] == event)
-                    & (athlete_routine_cross["Event Routine"] == routine_id),
-                    "Custom Upgrade Skill",
-                ] = to_skill
-    athlete_routine_cross["Skill to Upgrade"] = athlete_routine_cross.apply(
-        lambda row: (
-            row["Custom Skill to Upgrade"]
-            if row["Custom Skill to Upgrade"] is not None
-            else row["Default Skill to Upgrade"]
-        ),
-        axis=1,
-    )
-    athlete_routine_cross["Upgrade Skill"] = athlete_routine_cross.apply(
-        lambda row: (
-            row["Custom Upgrade Skill"]
-            if row["Custom Upgrade Skill"] is not None
-            else row["Default Upgrade Skill"]
-        ),
-        axis=1,
-    )
-    augmented_routine_scores_long = routine_scores_long.merge(
-        athlete_routine_cross[
+
+    # Join scores and skills
+    scores_and_skills_df = routine_scores_long.merge(
+        skill_pairs_df[
             [
                 "Athlete",
                 "Level",
                 "Event",
                 "Event Routine",
-                "Skill to Upgrade",
+                "Current Skill",
                 "Upgrade Skill",
+                "Current Skill ID",
+                "Upgrade Skill ID",
             ]
         ],
         how="left",
@@ -199,17 +308,15 @@ def main():
     )
 
     # Create the new column using transform
-    augmented_routine_scores_long["Second Highest Score"] = (
-        augmented_routine_scores_long.groupby(
-            ["Level", "Athlete", "Event", "Event Routine"]
-        )["Event Score"].transform(get_second_highest)
-    )
-    filtered_routine_scores = augmented_routine_scores_long[
+    scores_and_skills_df["Second Highest Score"] = scores_and_skills_df.groupby(
+        ["Level", "Athlete", "Event", "Event Routine"]
+    )["Event Score"].transform(get_second_highest)
+    filtered_routine_scores = scores_and_skills_df[
         (
-            augmented_routine_scores_long["Event Score"]
-            >= augmented_routine_scores_long["Second Highest Score"]
+            scores_and_skills_df["Event Score"]
+            >= scores_and_skills_df["Second Highest Score"]
         )
-        | augmented_routine_scores_long["Second Highest Score"].isna()
+        | scores_and_skills_df["Second Highest Score"].isna()
     ]
     filtered_routine_scores = filtered_routine_scores.sort_values(
         ["Level", "Athlete", "Event", "Event Routine", "Meet"]
@@ -220,8 +327,10 @@ def main():
         {
             "Meet": list,
             "Event Score": list,
-            "Skill to Upgrade": "first",
+            "Current Skill": "first",
             "Upgrade Skill": "first",
+            "Current Skill ID": "first",
+            "Upgrade Skill ID": "first",
         }
     )
     pivoted_routine_scores[["Meet #1", "Meet #2"]] = pd.DataFrame(
@@ -235,24 +344,26 @@ def main():
     pivoted_routine_scores["Active Routine"] = pivoted_routine_scores.groupby(
         ["Level", "Athlete", "Event"]
     )["Event Routine"].transform("max")
-    pivoted_routine_scores["Baseline Routine"] = pivoted_routine_scores.groupby(
-        ["Level", "Athlete", "Event"]
-    )["Event Routine"].transform("min")
     pivoted_routine_scores["Is Active?"] = pivoted_routine_scores.apply(
         lambda row: "TRUE"
         if row["Event Routine"] == row["Active Routine"]
         else "FALSE",
         axis=1,
     )
+
     augmented_skill_eval_df = skill_evaluation_df.groupby(
         ["Level", "Athlete", "Event", "Skill ID"], as_index=False
     ).agg({"Score": "max"})
     augmented_skill_eval_df = augmented_skill_eval_df.rename(
-        columns={"Skill ID": "Upgrade Skill", "Score": "Upgrade Skill Score"}
+        columns={"Skill ID": "Upgrade Skill ID", "Score": "Upgrade Skill Score"}
     )
+    augmented_skill_eval_df = augmented_skill_eval_df.replace(
+        {"BB": "Beam", "VT": "Vault", "UB": "Bars", "FX": "Floor"}
+    )
+
     routine_and_skills_scores = pivoted_routine_scores.merge(
         augmented_skill_eval_df,
-        on=["Level", "Athlete", "Event", "Upgrade Skill"],
+        on=["Level", "Athlete", "Event", "Upgrade Skill ID"],
         how="left",
     )
     routine_and_skills_scores["Ready to Upgrade?"] = routine_and_skills_scores.apply(
@@ -282,9 +393,29 @@ def main():
         & (routine_and_skills_scores["Ready to Upgrade?"] == "FALSE"),
         "Admin Notes",
     ] = "Routine was upgraded without meeting upgrade requirements. Confirm that routine and skill scores are up to date."
+
+    routine_and_skills_scores = routine_and_skills_scores[
+        [
+            "Level",
+            "Athlete",
+            "Event",
+            "Event Routine",
+            "Current Skill",
+            "Upgrade Skill",
+            "Upgrade Skill Score",
+            "Meet #1",
+            "Score #1",
+            "Meet #2",
+            "Score #2",
+            "Is Active?",
+            "Ready to Upgrade?",
+            "Upgrade Status",
+            "Admin Notes",
+        ]
+    ]
     return routine_and_skills_scores
 
 
 if __name__ == "__main__":
     routine_and_skills_scores = main()
-    print(routine_and_skills_scores)
+    append_dataset_rows(dataset_name="upgrade_tracker", df=routine_and_skills_scores)
