@@ -1,5 +1,6 @@
 import json
 import os.path
+from datetime import datetime
 
 import pandas as pd
 from google.auth.transport.requests import Request
@@ -132,32 +133,74 @@ def read_dataset(dataset_name, credentials=None):
     return df
 
 
-def append_dataset_rows(dataset_name, df, credentials=None):
+def append_dataset_rows(dataset_name, df, credentials=None, truncate=False):
     # Validate
     dataset_cfg = _get_dataset_config(dataset_name)
     df = standardize(df, dataset_cfg["schema"])
     validate_dataset(df, dataset_cfg["schema"])
 
     # Convert dataframe to JSON-serializable array
-    gsheet_body = _dataframe_to_gsheet_body(df)
+    gsheet_body = _dataframe_to_gsheet_body(
+        df, include_columns=True if truncate else False
+    )
 
-    # Write data
+    # Get current state of sheet
     credentials = credentials or authenticate()
     sheet = get_sheet(credentials)
-    print(f"Writing n={df.shape[0]} records to Google Sheets")
-    result = (
-        sheet.values()
-        .append(
-            spreadsheetId=dataset_cfg["spreadsheet_id"],
-            range=dataset_cfg["sheet_range"],
-            valueInputOption="USER_ENTERED",
-            insertDataOption="INSERT_ROWS",
-            body=gsheet_body,
+
+    # Truncate data
+    rand_id = datetime.now().strftime("%Y%m%d%H%M%S")
+    temp_sheet_name = f"_temp_{rand_id}"
+    if truncate:
+        print("Copying data in sheet to temporary location")
+        duplicate_sheet(
+            dataset_cfg["spreadsheet_id"],
+            sheet_name=dataset_cfg["sheet_range"],
+            new_sheet_name=temp_sheet_name,
         )
-        .execute()
-    )
-    url = f"https://docs.google.com/spreadsheets/d/{dataset_cfg['spreadsheet_id']}"
-    print(f"{result.get('updates').get('updatedCells')} cells updated in {url}")
+        print("Truncating sheet")
+        truncate_sheet(
+            dataset_cfg["spreadsheet_id"],
+            sheet_name=dataset_cfg["sheet_range"],
+        )
+
+    try:
+        # Write data
+        print(f"Writing n={df.shape[0]} records to Google Sheets")
+        result = (
+            sheet.values()
+            .append(
+                spreadsheetId=dataset_cfg["spreadsheet_id"],
+                range=dataset_cfg["sheet_range"],
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body=gsheet_body,
+            )
+            .execute()
+        )
+        url = f"https://docs.google.com/spreadsheets/d/{dataset_cfg['spreadsheet_id']}"
+        print(f"{result.get('updates').get('updatedCells')} cells updated in {url}")
+        delete_sheet(
+            dataset_cfg["spreadsheet_id"],
+            sheet_name=temp_sheet_name,
+        )
+    except Exception:
+        # Do rollback
+        print(
+            f"""Encountered an error when writing new data to '{dataset_cfg["sheet_range"]}'"""
+        )
+        print("Copying data in temporary location back to original location")
+        delete_sheet(
+            dataset_cfg["spreadsheet_id"],
+            sheet_name=dataset_cfg["sheet_range"],
+            prompt_user=False,
+        )
+        duplicate_sheet(
+            dataset_cfg["spreadsheet_id"],
+            sheet_name=temp_sheet_name,
+            new_sheet_name=dataset_cfg["sheet_range"],
+        )
+        raise
 
 
 def _get_dataset_config(dataset_name):
@@ -167,7 +210,7 @@ def _get_dataset_config(dataset_name):
     return dataset
 
 
-def _dataframe_to_gsheet_body(df):
+def _dataframe_to_gsheet_body(df, include_columns=False):
     _df = df.copy()
     _df = _df.fillna("").astype(str)  # prevent JSON serialization error
     print("Preparing data batch for Google Sheets API")
@@ -175,7 +218,11 @@ def _dataframe_to_gsheet_body(df):
     print(_df.head())
     print("...")
     print("\n----------  data sample  ----------\n")
-    gsheet_body = {"values": _df.values.tolist()}
+    values = _df.values.tolist()
+    if include_columns:
+        values = [list(_df.columns)] + values
+
+    gsheet_body = {"values": values}
     try:
         json.dumps(gsheet_body)
         return gsheet_body
@@ -183,3 +230,100 @@ def _dataframe_to_gsheet_body(df):
         raise ValueError(
             f"Failed to convert dataframe to JSON-serializable dictionary: {e}"
         )
+
+
+def create_sheet_in_workbook(spreadsheet_id, sheet_name, credentials=None):
+    credentials = credentials or authenticate()
+    sheet = get_sheet(credentials)
+    body = {"requests": [{"addSheet": {"properties": {"title": sheet_name}}}]}
+    response = sheet.batchUpdate(spreadsheetId=spreadsheet_id, body=body).execute()
+    print(
+        f"Sheet '{sheet_name}' added successfully to spreadsheet ID: {spreadsheet_id}"
+    )
+
+    new_sheet_id = None
+    reply = response.get("replies", [])
+    if reply:
+        new_sheet_id = reply[0]["addSheet"]["properties"]["sheetId"]
+        print(f"New sheet ID: {new_sheet_id}")
+    return new_sheet_id
+
+
+def get_sheet_id(spreadsheet_id, sheet_name, sheet=None, credentials=None):
+    credentials = credentials or authenticate()
+    sheet = sheet or get_sheet(credentials)
+
+    spreadsheet_metadata = sheet.get(
+        spreadsheetId=spreadsheet_id, fields="sheets(properties(sheetId,title))"
+    ).execute()
+
+    sheet_id = None
+    url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
+    sheets = spreadsheet_metadata.get("sheets", [])
+    for _sheet in sheets:
+        properties = _sheet.get("properties", {})
+        if properties.get("title") == sheet_name:
+            sheet_id = properties.get("sheetId")
+    if not sheet_id:
+        raise ValueError(f"Sheet with name '{sheet_name}' not found in {url}")
+
+    return sheet_id
+
+
+def duplicate_sheet(spreadsheet_id, sheet_name, new_sheet_name, credentials=None):
+    credentials = credentials or authenticate()
+    sheet = get_sheet(credentials)
+
+    sheet_id = get_sheet_id(spreadsheet_id, sheet_name, sheet, credentials)
+
+    body = {
+        "requests": [
+            {
+                "duplicateSheet": {
+                    "sourceSheetId": sheet_id,
+                    "newSheetName": new_sheet_name,
+                }
+            }
+        ]
+    }
+    response = sheet.batchUpdate(spreadsheetId=spreadsheet_id, body=body).execute()
+    url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
+    print(f"Sheet duplicated to '{new_sheet_name}' in {url}")
+    print(f"New sheet ID: {sheet_id}")
+    return response
+
+
+def truncate_sheet(spreadsheet_id, sheet_name, credentials=None):
+    credentials = credentials or authenticate()
+    sheet = get_sheet(credentials)
+    result = (
+        sheet.values()
+        .clear(
+            spreadsheetId=spreadsheet_id,
+            range=sheet_name,
+        )
+        .execute()
+    )
+    url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
+    print(f"Sheet '{sheet_name}' truncated in {url}")
+    return result
+
+
+def delete_sheet(spreadsheet_id, sheet_name, credentials=None, prompt_user=True):
+    credentials = credentials or authenticate()
+    sheet = get_sheet(credentials)
+    sheet_id = get_sheet_id(spreadsheet_id, sheet_name, sheet, credentials)
+    requests = [{"deleteSheet": {"sheetId": sheet_id}}]
+
+    body = {"requests": requests}
+    url = f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}"
+
+    answer = "Y"
+    if prompt_user:
+        answer = input(
+            f"\nAre you sure you want to delete sheet '{sheet_name}' in {url}\n\n(Y/n) >> "
+        )
+    if answer == "Y":
+        response = sheet.batchUpdate(spreadsheetId=spreadsheet_id, body=body).execute()
+        print(f"Sheet '{sheet_name}' (ID={sheet_id}) deleted successfully in {url}")
+        return response

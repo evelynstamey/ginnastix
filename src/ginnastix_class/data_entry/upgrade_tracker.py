@@ -84,6 +84,7 @@ def skill_description(s):
 def main():
     ######################################################## Data
     # Raw datasets
+    EVENT_MAPPING = {"BB": "Beam", "VT": "Vault", "UB": "Bars", "FX": "Floor"}
     levels_df = read_reference_dataset("levels")
     default_routines_df = read_reference_dataset("default_routines")
     preseason_testout_df = read_reference_dataset("preseason_testout")
@@ -96,7 +97,6 @@ def main():
     athlete_df = meet_scores_df[["Level", "Athlete"]].drop_duplicates()
 
     ######################################################## Transform
-
     # Get all default athlete routines
     _athlete_routines_dfs = []
     for level in levels_df["Level"]:
@@ -187,18 +187,18 @@ def main():
             [athlete_routines_df, _athlete_routines_df], axis=0, ignore_index=True
         )
 
-    # reshape scores
+    # Reshape scores
     scores_long = pd.melt(
         meet_scores_df,
         id_vars=["Meet", "Level", "Athlete"],
-        value_vars=["Beam", "Bars"],
+        value_vars=list(EVENT_MAPPING.values()),
         var_name="Event",
         value_name="Event Score",
     )
     routine_long = pd.melt(
         meet_scores_df,
         id_vars=["Meet", "Level", "Athlete"],
-        value_vars=["Beam Routine", "Bars Routine"],
+        value_vars=[f"{i} Routine" for i in list(EVENT_MAPPING.values())],
         var_name="Event",
         value_name="Event Routine",
     )
@@ -260,12 +260,13 @@ def main():
             ],
             right_on=["Athlete", "Level", "Event", "Upgrade Order"],
             left_on=["Athlete", "Level", "Event", "n+1"],
-            how="inner",
+            how="left",
             suffixes=("", "+1"),
         )
         .sort_values(["Athlete", "Level", "Event", "Upgrade Order"])
         .reset_index(drop=True)
     )
+
     skill_pairs_df = skill_pairs_df[
         [
             "Athlete",
@@ -278,7 +279,7 @@ def main():
             "Skill Name+1",
         ]
     ]
-    skill_pairs_df.rename(  # routine_upgrades_df
+    skill_pairs_df.rename(
         columns={
             "Upgrade Order": "Event Routine",
             "Skill Name": "Current Skill",
@@ -307,7 +308,6 @@ def main():
         on=["Athlete", "Level", "Event", "Event Routine"],
     )
 
-    # Create the new column using transform
     scores_and_skills_df["Second Highest Score"] = scores_and_skills_df.groupby(
         ["Level", "Athlete", "Event", "Event Routine"]
     )["Event Score"].transform(get_second_highest)
@@ -319,7 +319,8 @@ def main():
         | scores_and_skills_df["Second Highest Score"].isna()
     ]
     filtered_routine_scores = filtered_routine_scores.sort_values(
-        ["Level", "Athlete", "Event", "Event Routine", "Meet"]
+        ["Level", "Athlete", "Event", "Event Routine", "Event Score", "Meet"],
+        ascending=[True, True, True, True, False, False],
     )
     pivoted_routine_scores = filtered_routine_scores.groupby(
         ["Level", "Athlete", "Event", "Event Routine"], as_index=False
@@ -335,11 +336,11 @@ def main():
     )
     pivoted_routine_scores[["Meet #1", "Meet #2"]] = pd.DataFrame(
         pivoted_routine_scores["Meet"].tolist(), index=pivoted_routine_scores.index
-    )
+    )[[0, 1]]
     pivoted_routine_scores[["Score #1", "Score #2"]] = pd.DataFrame(
         pivoted_routine_scores["Event Score"].tolist(),
         index=pivoted_routine_scores.index,
-    )
+    )[[0, 1]]
     pivoted_routine_scores.drop(columns=["Meet", "Event Score"], inplace=True)
     pivoted_routine_scores["Active Routine"] = pivoted_routine_scores.groupby(
         ["Level", "Athlete", "Event"]
@@ -351,15 +352,14 @@ def main():
         axis=1,
     )
 
+    # Augment with analytics
     augmented_skill_eval_df = skill_evaluation_df.groupby(
         ["Level", "Athlete", "Event", "Skill ID"], as_index=False
     ).agg({"Score": "max"})
     augmented_skill_eval_df = augmented_skill_eval_df.rename(
         columns={"Skill ID": "Upgrade Skill ID", "Score": "Upgrade Skill Score"}
     )
-    augmented_skill_eval_df = augmented_skill_eval_df.replace(
-        {"BB": "Beam", "VT": "Vault", "UB": "Bars", "FX": "Floor"}
-    )
+    augmented_skill_eval_df = augmented_skill_eval_df.replace({"Event": EVENT_MAPPING})
 
     routine_and_skills_scores = pivoted_routine_scores.merge(
         augmented_skill_eval_df,
@@ -394,28 +394,38 @@ def main():
         "Admin Notes",
     ] = "Routine was upgraded without meeting upgrade requirements. Confirm that routine and skill scores are up to date."
 
-    routine_and_skills_scores = routine_and_skills_scores[
-        [
-            "Level",
-            "Athlete",
-            "Event",
-            "Event Routine",
-            "Current Skill",
-            "Upgrade Skill",
-            "Upgrade Skill Score",
-            "Meet #1",
-            "Score #1",
-            "Meet #2",
-            "Score #2",
-            "Is Active?",
-            "Ready to Upgrade?",
-            "Upgrade Status",
-            "Admin Notes",
+    routine_and_skills_scores = (
+        routine_and_skills_scores[
+            [
+                "Level",
+                "Athlete",
+                "Event",
+                "Event Routine",
+                "Current Skill",
+                "Upgrade Skill",
+                "Upgrade Skill Score",
+                "Meet #1",
+                "Score #1",
+                "Meet #2",
+                "Score #2",
+                "Is Active?",
+                "Ready to Upgrade?",
+                "Upgrade Status",
+                "Admin Notes",
+            ]
         ]
-    ]
+        .sort_values(["Level", "Athlete", "Event", "Event Routine"])
+        .reset_index(drop=True)
+    )
+    routine_and_skills_scores["Upgrade Skill"] = routine_and_skills_scores[
+        "Upgrade Skill"
+    ].fillna("[none]")
+
     return routine_and_skills_scores
 
 
 if __name__ == "__main__":
     routine_and_skills_scores = main()
-    append_dataset_rows(dataset_name="upgrade_tracker", df=routine_and_skills_scores)
+    append_dataset_rows(
+        dataset_name="upgrade_tracker", df=routine_and_skills_scores, truncate=True
+    )
