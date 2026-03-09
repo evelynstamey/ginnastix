@@ -133,16 +133,44 @@ def read_dataset(dataset_name, credentials=None):
     return df
 
 
-def append_dataset_rows(dataset_name, df, credentials=None, truncate=False):
+def append_dataset_rows(dataset_name, df, credentials=None, include_columns=False):
     # Validate
     dataset_cfg = _get_dataset_config(dataset_name)
     df = standardize(df, dataset_cfg["schema"])
     validate_dataset(df, dataset_cfg["schema"])
 
     # Convert dataframe to JSON-serializable array
-    gsheet_body = _dataframe_to_gsheet_body(
-        df, include_columns=True if truncate else False
+    gsheet_body = _dataframe_to_gsheet_body(df, include_columns=include_columns)
+
+    # Get current state of sheet
+    credentials = credentials or authenticate()
+    sheet = get_sheet(credentials)
+
+    # Write data
+    print(f"Writing n={df.shape[0]} records to Google Sheets")
+    result = (
+        sheet.values()
+        .append(
+            spreadsheetId=dataset_cfg["spreadsheet_id"],
+            range=dataset_cfg["sheet_range"],
+            valueInputOption="USER_ENTERED",
+            insertDataOption="INSERT_ROWS",
+            body=gsheet_body,
+        )
+        .execute()
     )
+    url = f"https://docs.google.com/spreadsheets/d/{dataset_cfg['spreadsheet_id']}"
+    print(f"{result.get('updates').get('updatedCells')} cells updated in {url}")
+
+
+def truncate_reload_dataset_rows(dataset_name, df, credentials=None):
+    # Validate
+    dataset_cfg = _get_dataset_config(dataset_name)
+    df = standardize(df, dataset_cfg["schema"])
+    validate_dataset(df, dataset_cfg["schema"])
+
+    # Convert dataframe to JSON-serializable array
+    gsheet_body = _dataframe_to_gsheet_body(df, include_columns=True)
 
     # Get current state of sheet
     credentials = credentials or authenticate()
@@ -151,18 +179,17 @@ def append_dataset_rows(dataset_name, df, credentials=None, truncate=False):
     # Truncate data
     rand_id = datetime.now().strftime("%Y%m%d%H%M%S")
     temp_sheet_name = f"_temp_{rand_id}"
-    if truncate:
-        print("Copying data in sheet to temporary location")
-        duplicate_sheet(
-            dataset_cfg["spreadsheet_id"],
-            sheet_name=dataset_cfg["sheet_range"],
-            new_sheet_name=temp_sheet_name,
-        )
-        print("Truncating sheet")
-        truncate_sheet(
-            dataset_cfg["spreadsheet_id"],
-            sheet_name=dataset_cfg["sheet_range"],
-        )
+    print("Copying data in sheet to temporary location")
+    duplicate_sheet(
+        dataset_cfg["spreadsheet_id"],
+        sheet_name=dataset_cfg["sheet_range"],
+        new_sheet_name=temp_sheet_name,
+    )
+    print("Truncating sheet")
+    truncate_sheet(
+        dataset_cfg["spreadsheet_id"],
+        sheet_name=dataset_cfg["sheet_range"],
+    )
 
     try:
         # Write data
@@ -193,7 +220,7 @@ def append_dataset_rows(dataset_name, df, credentials=None, truncate=False):
         delete_sheet(
             dataset_cfg["spreadsheet_id"],
             sheet_name=dataset_cfg["sheet_range"],
-            prompt_user=False,
+            prompt_user=True,
         )
         duplicate_sheet(
             dataset_cfg["spreadsheet_id"],

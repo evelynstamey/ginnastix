@@ -1,4 +1,3 @@
-import itertools
 import os
 import pickle
 from pathlib import Path
@@ -6,9 +5,9 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from ginnastix_class.utils.google_sheets import append_dataset_rows
 from ginnastix_class.utils.google_sheets import authenticate
 from ginnastix_class.utils.google_sheets import read_dataset
+from ginnastix_class.utils.google_sheets import truncate_reload_dataset_rows
 
 
 # helpers
@@ -17,42 +16,67 @@ def get_second_highest(x):
     return y[-2] if len(y) > 1 else np.nan
 
 
+def score_status(x, threshold):
+    if pd.isna(x):
+        return "missing"
+    if x < threshold:
+        return "insufficient"
+    return "done"
+
+
 def upgrade_status(row):
-    if all([row["Is Active?"] == "TRUE", row["Ready to Upgrade?"] == "TRUE"]):
-        return "pending"
+    if row["Is Active?"] == "FALSE":
+        return "complete"
 
-    statuses = []
-    if pd.isna(row["Score #1"]):
-        statuses.append("missing routine score")
-    elif row["Score #1"] < 9.4:
-        statuses.append("insufficient routine score")
-    if pd.isna(row["Score #2"]):
-        statuses.append("missing routine score")
-    elif row["Score #2"] < 9.4:
-        statuses.append("insufficient routine score")
-    if pd.isna(row["Upgrade Skill Score"]):
-        statuses.append("missing skill score")
-    elif row["Upgrade Skill Score"] < 4:
-        statuses.append("insufficient skill score")
-    statuses.sort()
-    status_summaries = []
-    for key, group in itertools.groupby(statuses):
-        if key.endswith("skill score"):
-            status_summaries.append(key)
-        else:
-            if key.startswith("missing"):
-                n = len(list(group))
-                s = "" if n == 1 else "s"
-                status_summaries.append(f"{n} missing {key[8:]}{s}")
-            if key.startswith("insufficient"):
-                n = len(list(group))
-                s = "" if n == 1 else "s"
-                status_summaries.append(f"{n} insufficient {key[13:]}{s}")
-    status_summaries.sort()
-    return "; ".join(status_summaries)
+    if all(
+        [
+            row["Meet Score Status #1"] == "done",
+            row["Meet Score Status #2"] == "done",
+            row["Skill Score Status"] == "done",
+        ]
+    ):
+        return "ready"
+
+    if all(
+        [
+            row["Meet Score Status #1"] == "done",
+            row["Meet Score Status #2"] == "done",
+        ]
+    ):
+        return "awaiting skill"
+
+    if all(
+        [
+            row["Skill Score Status"] == "done",
+        ]
+    ):
+        return "awaiting routine"
+
+    if all(
+        [
+            row["Meet Score Status #1"] == "missing",
+            row["Meet Score Status #2"] == "missing",
+            row["Skill Score Status"] == "missing",
+        ]
+    ):
+        return "not started"
+    else:
+        return "in progress"
 
 
-def read_reference_dataset(name, data_dir="data", source="local", credentials=None):
+def ready_to_upgrade(row):
+    if all(
+        [
+            row["Meet Score Status #1"] == "done",
+            row["Meet Score Status #2"] == "done",
+            row["Skill Score Status"] == "done",
+        ]
+    ):
+        return "TRUE"
+    return "FALSE"
+
+
+def read_reference_dataset(name, data_dir="data", source="gsheet", credentials=None):
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     file_name = os.path.join(data_dir, f"{name}.pkl")
     if source == "local":
@@ -337,7 +361,7 @@ def main():
     pivoted_routine_scores[["Meet #1", "Meet #2"]] = pd.DataFrame(
         pivoted_routine_scores["Meet"].tolist(), index=pivoted_routine_scores.index
     )[[0, 1]]
-    pivoted_routine_scores[["Score #1", "Score #2"]] = pd.DataFrame(
+    pivoted_routine_scores[["Meet Score #1", "Meet Score #2"]] = pd.DataFrame(
         pivoted_routine_scores["Event Score"].tolist(),
         index=pivoted_routine_scores.index,
     )[[0, 1]]
@@ -357,45 +381,36 @@ def main():
         ["Level", "Athlete", "Event", "Skill ID"], as_index=False
     ).agg({"Score": "max"})
     augmented_skill_eval_df = augmented_skill_eval_df.rename(
-        columns={"Skill ID": "Upgrade Skill ID", "Score": "Upgrade Skill Score"}
+        columns={"Skill ID": "Upgrade Skill ID", "Score": "Skill Score"}
     )
     augmented_skill_eval_df = augmented_skill_eval_df.replace({"Event": EVENT_MAPPING})
 
-    routine_and_skills_scores = pivoted_routine_scores.merge(
+    scores_summary = pivoted_routine_scores.merge(
         augmented_skill_eval_df,
         on=["Level", "Athlete", "Event", "Upgrade Skill ID"],
         how="left",
     )
-    routine_and_skills_scores["Ready to Upgrade?"] = routine_and_skills_scores.apply(
-        lambda row: (
-            "TRUE"
-            if all(
-                [
-                    not pd.isna(row["Score #1"]),
-                    not pd.isna(row["Score #2"]),
-                    not pd.isna(row["Upgrade Skill Score"]),
-                    row["Score #1"] >= 9.4,
-                    row["Score #2"] >= 9.4,
-                    row["Upgrade Skill Score"] >= 4,
-                ]
-            )
-            else "FALSE"
-        ),
-        axis=1,
-    )
 
-    routine_and_skills_scores["Upgrade Status"] = routine_and_skills_scores.apply(
-        upgrade_status, axis=1
+    scores_summary["Meet Score Status #1"] = scores_summary["Meet Score #1"].apply(
+        score_status, threshold=9.4
     )
-    routine_and_skills_scores["Admin Notes"] = ""
-    routine_and_skills_scores.loc[
-        (routine_and_skills_scores["Is Active?"] == "FALSE")
-        & (routine_and_skills_scores["Ready to Upgrade?"] == "FALSE"),
+    scores_summary["Meet Score Status #2"] = scores_summary["Meet Score #2"].apply(
+        score_status, threshold=9.4
+    )
+    scores_summary["Skill Score Status"] = scores_summary["Skill Score"].apply(
+        score_status, threshold=4
+    )
+    scores_summary["Upgrade Status"] = scores_summary.apply(upgrade_status, axis=1)
+    scores_summary["Ready to Upgrade?"] = scores_summary.apply(ready_to_upgrade, axis=1)
+    scores_summary["Admin Notes"] = ""
+    scores_summary.loc[
+        (scores_summary["Is Active?"] == "FALSE")
+        & (scores_summary["Ready to Upgrade?"] == "FALSE"),
         "Admin Notes",
     ] = "Routine was upgraded without meeting upgrade requirements. Confirm that routine and skill scores are up to date."
 
-    routine_and_skills_scores = (
-        routine_and_skills_scores[
+    scores_summary = (
+        scores_summary[
             [
                 "Level",
                 "Athlete",
@@ -403,13 +418,16 @@ def main():
                 "Event Routine",
                 "Current Skill",
                 "Upgrade Skill",
-                "Upgrade Skill Score",
+                "Skill Score",
                 "Meet #1",
-                "Score #1",
+                "Meet Score #1",
                 "Meet #2",
-                "Score #2",
+                "Meet Score #2",
                 "Is Active?",
                 "Ready to Upgrade?",
+                "Skill Score Status",
+                "Meet Score Status #1",
+                "Meet Score Status #2",
                 "Upgrade Status",
                 "Admin Notes",
             ]
@@ -417,15 +435,11 @@ def main():
         .sort_values(["Level", "Athlete", "Event", "Event Routine"])
         .reset_index(drop=True)
     )
-    routine_and_skills_scores["Upgrade Skill"] = routine_and_skills_scores[
-        "Upgrade Skill"
-    ].fillna("[none]")
+    scores_summary["Upgrade Skill"] = scores_summary["Upgrade Skill"].fillna("[none]")
 
-    return routine_and_skills_scores
+    return scores_summary
 
 
 if __name__ == "__main__":
-    routine_and_skills_scores = main()
-    append_dataset_rows(
-        dataset_name="upgrade_tracker", df=routine_and_skills_scores, truncate=True
-    )
+    scores_summary = main()
+    truncate_reload_dataset_rows(dataset_name="upgrade_tracker", df=scores_summary)
