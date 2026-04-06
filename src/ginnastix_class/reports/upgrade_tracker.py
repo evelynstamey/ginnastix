@@ -189,9 +189,11 @@ def main():
         )
 
         _athlete_routines_df["_testout_upgrade_order"] = _athlete_routines_df.apply(
-            lambda row: row["Upgrade Order"]
-            if not pd.isna(row["_idx_diff"]) and row["_idx_diff"] > 0
-            else row["_idx_diff"],
+            lambda row: (
+                row["Upgrade Order"]
+                if not pd.isna(row["_idx_diff"]) and row["_idx_diff"] > 0
+                else row["_idx_diff"]
+            ),
             axis=1,
         )
         _athlete_routines_df["_testout_upgrade_order"] = (
@@ -370,9 +372,9 @@ def main():
         ["Level", "Athlete", "Event"]
     )["Event Routine"].transform("max")
     pivoted_routine_scores["Is Active?"] = pivoted_routine_scores.apply(
-        lambda row: "TRUE"
-        if row["Event Routine"] == row["Active Routine"]
-        else "FALSE",
+        lambda row: (
+            "TRUE" if row["Event Routine"] == row["Active Routine"] else "FALSE"
+        ),
         axis=1,
     )
 

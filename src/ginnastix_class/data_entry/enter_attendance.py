@@ -56,7 +56,9 @@ class Attendance:
             self.norm_date_string
         )
         self.df_holidays["DT"] = self.df_holidays["Date"].apply(self.to_dt)
-
+        df_holidays_filtered = self.df_holidays[
+            self.df_holidays["No Practice"] == "TRUE"
+        ]
         min_timestamp = self.df_student_classes["Start"].apply(self.to_dt).min()
         all_dates = []
         _date = min_timestamp
@@ -78,7 +80,7 @@ class Attendance:
         )
         df3 = pd.merge(
             df2,
-            self.df_holidays[["DT", "Holiday"]],
+            df_holidays_filtered[["DT", "Holiday"]],
             on="DT",
             how="left",
         )
@@ -92,7 +94,7 @@ class Attendance:
     @cached_property
     def date_info(self):
         # TODO: clean up
-        max_display = 6
+        max_display = 12
         dates = []
         for _date, _ in self.class_days.groupby(["Date", "Day", "DT"]):
             dates.append(_date)

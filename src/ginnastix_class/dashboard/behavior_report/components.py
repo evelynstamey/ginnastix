@@ -164,9 +164,11 @@ def get_overall_behavior_graph(
         x1=1,
         y1=student_mean,
         line=dict(
-            color=NEGATIVE_ACCENT
-            if student_mean < expected_threshold
-            else POSITIVE_ACCENT,
+            color=(
+                NEGATIVE_ACCENT
+                if student_mean < expected_threshold
+                else POSITIVE_ACCENT
+            ),
             width=2,
             dash="dot",
         ),

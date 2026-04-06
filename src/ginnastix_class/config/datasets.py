@@ -52,6 +52,7 @@ DATASETS = {
             "XB": {"index": 7},
             "XS": {"index": 8},
             "XG": {"index": 9},
+            "Admin Tags": {"index": 10, "is_nullable": True},
         },
     },
     "students": {

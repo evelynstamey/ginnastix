@@ -164,6 +164,10 @@ cython_debug/
 node_modules*
 
 
-*credentials.json
-*token.json
-*data/*.pkl
+**/*.ipynb
+**/credentials.json
+**/token.json
+**/data/*.pkl
+**/level_evaluations/*
+
+**/.DS_Store
