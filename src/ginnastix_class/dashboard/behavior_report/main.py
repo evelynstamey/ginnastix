@@ -24,7 +24,7 @@ REF
 """
 
 
-def main(dataset_source="local", debug=False):
+def run_behavior_report(dataset_source="local", debug=False):
     global DF
     global DATE_LIST
 
@@ -129,4 +129,4 @@ def overall_behavior_graph(athlete_name, date_range):
 
 
 if __name__ == "__main__":
-    main()
+    run_behavior_report()

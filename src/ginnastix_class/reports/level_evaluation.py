@@ -11,6 +11,7 @@ from ginnastix_class.utils.google_sheets import authenticate
 from ginnastix_class.utils.google_sheets import read_dataset
 
 EVENT_MAPPING = {"BB": "Beam", "VT": "Vault", "UB": "Bars", "FX": "Floor"}
+LEVEL_MAPPING = {"XB": "Bronze", "XS": "Silver", "XG": "Gold"}
 
 
 def read_reference_dataset(name, data_dir="data", source="gsheet", credentials=None):
@@ -71,6 +72,8 @@ def process_skill_evaluations(skill_evaluation_df, skills_df, student_classes_df
     level_evaluation_df["Required Skill"] = level_evaluation_df.apply(
         skill_description, axis=1
     )
+    with open("level_evaluation_df.pkl", "wb") as f:
+        pickle.dump(level_evaluation_df, f)
     return level_evaluation_df
 
 
@@ -92,6 +95,7 @@ def get_report_scores_df(level_evaluation_df, athlete, target_level):
             & (level_evaluation_df["Athlete"] == athlete)
         ]
     )[["Event", "Required Skill", "Score"]]
+
     return report_scores_df
 
 
@@ -209,7 +213,7 @@ def export_df_to_pdf(
     ax.text(
         0,
         subtitle_height,
-        f"Level Evaluation | {target_level}",
+        f"Level Evaluation | Xcel {LEVEL_MAPPING[target_level]}",
         transform=ax.transAxes,
         ha="left",
         fontsize=12,
@@ -310,7 +314,7 @@ def generate_reports(
         skill_evaluation_df, skills_df, student_classes_df
     )
     athletes = level_evaluation_df["Athlete"].unique()
-    target_levels = ["XB", "XS", "XG"]
+    target_levels = list(LEVEL_MAPPING.keys())
 
     for athlete in athletes:
         for target_level in target_levels:

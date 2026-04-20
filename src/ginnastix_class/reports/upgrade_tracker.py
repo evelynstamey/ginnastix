@@ -105,7 +105,7 @@ def skill_description(s):
         return str(names[0]) + " - " + str(names[1])
 
 
-def main():
+def _run_upgrade_tracker():
     ######################################################## Data
     # Raw datasets
     EVENT_MAPPING = {"BB": "Beam", "VT": "Vault", "UB": "Bars", "FX": "Floor"}
@@ -442,6 +442,10 @@ def main():
     return scores_summary
 
 
-if __name__ == "__main__":
-    scores_summary = main()
+def run_upgrade_tracker():
+    scores_summary = _run_upgrade_tracker()
     truncate_reload_dataset_rows(dataset_name="upgrade_tracker", df=scores_summary)
+
+
+if __name__ == "__main__":
+    run_upgrade_tracker()

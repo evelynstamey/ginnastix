@@ -167,7 +167,7 @@ node_modules*
 **/*.ipynb
 **/credentials.json
 **/token.json
-**/data/*.pkl
+**/*.pkl
 **/level_evaluations/*
 
 **/.DS_Store

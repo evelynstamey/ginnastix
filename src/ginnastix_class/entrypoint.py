@@ -3,10 +3,11 @@ from datetime import datetime
 
 import click
 
-from ginnastix_class.dashboard.behavior_report.main import main
+from ginnastix_class.dashboard.behavior_report.main import run_behavior_report
 from ginnastix_class.data_entry.enter_attendance import Attendance
 from ginnastix_class.data_entry.enter_skills import SkillEvaluation
 from ginnastix_class.reports.level_evaluation import generate_reports
+from ginnastix_class.reports.upgrade_tracker import run_upgrade_tracker
 
 
 @click.group()
@@ -36,7 +37,7 @@ def attendance(clear_cache, resume_data_entry):
 @click.option("--debug", is_flag=True)
 def behavior_report(clear_cache, debug):
     reference_dataset_source = "gsheets" if clear_cache else "local"
-    main(reference_dataset_source, debug)
+    run_behavior_report(reference_dataset_source, debug)
 
 
 @cli.command()
@@ -65,3 +66,8 @@ def level_evaluation(target_directory):
     evaluation_date = right_now.strftime("%B %Y")
     next_evaluation = datetime(next_eval_year, next_eval_month, 1).strftime("%B %Y")
     generate_reports(target_season, evaluation_date, next_evaluation, target_directory)
+
+
+@cli.command()
+def upgrade_tracker():
+    run_upgrade_tracker()
