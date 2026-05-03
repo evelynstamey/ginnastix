@@ -1,5 +1,6 @@
 import os
 import pickle
+from datetime import datetime
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -43,7 +44,13 @@ def skill_description(s):
         return str(names[0]) + " (" + str(names[1] + ")")
 
 
-def process_skill_evaluations(skill_evaluation_df, skills_df, student_classes_df):
+def process_skill_evaluations(
+    skill_evaluation_df, skills_df, student_classes_df, evaluation_dt
+):
+    # Exclude records created after the given reference timestamp
+    skill_evaluation_df = skill_evaluation_df[
+        skill_evaluation_df["Inserted At"] <= str(evaluation_dt)
+    ]
     idx = (
         skill_evaluation_df.sort_values(
             ["Period", "Inserted At"], ascending=[True, False]
@@ -94,13 +101,44 @@ def get_report_scores_df(level_evaluation_df, athlete, target_level):
             )
             & (level_evaluation_df["Athlete"] == athlete)
         ]
-    )[["Event", "Required Skill", "Score"]]
+    )[["Event", "Required Skill", "Score", "Choice Group ID"]]
 
     return report_scores_df
 
 
+def get_agg_report_scores_df(df):
+    # Handle choice groups (e.g. "side aerial [or] front flip")
+    # The highest score is selected and the corresponding skill is given an asterisk
+    # No skill is asterisked if both skills have nulls
+    df["Choice Group Score Rank"] = df.groupby("Choice Group ID")["Score"].rank(
+        na_option="keep", ascending=False, method="first"
+    )
+    df.loc[df["Choice Group Score Rank"] == 1, "Required Skill"] = (
+        df["Required Skill"] + "*"
+    )
+    grouped_df = (
+        df.groupby("Choice Group ID")
+        .agg({"Event": "first", "Required Skill": " [or] ".join, "Score": "max"})
+        .reset_index()
+    )
+    return (
+        pd.concat(
+            [
+                df[df["Choice Group ID"].isna()][["Event", "Required Skill", "Score"]],
+                grouped_df[["Event", "Required Skill", "Score"]],
+            ]
+        )
+        .reset_index(drop=True)
+        .convert_dtypes()
+    )
+
+
 def get_mpl_table_df(
-    report_scores_df, target_season, evaluation_date, next_evaluation, target_level
+    report_scores_df,
+    target_season,
+    this_evaluation_period,
+    next_evaluation_period,
+    target_level,
 ):
     threshold = 2 if target_level == "XB" else 3
 
@@ -140,7 +178,7 @@ def get_mpl_table_df(
             ["", "", ""],
             ["", "", ""],
             ["TARGET SEASON", target_season, ""],
-            ["EVALUATION DATE", evaluation_date, ""],
+            ["EVALUATION DATE", this_evaluation_period, ""],
             ["", "", ""],
             ["", "", ""],
             ["", "", ""],
@@ -159,7 +197,7 @@ def get_mpl_table_df(
             ["", "", ""],
             ["", "", ""],
             ["READY FOR LEVEL?", ready_for_level, ""],
-            ["NEXT EVALUATION", next_evaluation, ""],
+            ["NEXT EVALUATION", next_evaluation_period, ""],
             ["", "", ""],
             ["", "", ""],
             ["", "", ""],
@@ -268,7 +306,9 @@ def export_df_to_pdf(
             # format "Score" values
             if col == 2:
                 cell.get_text().set_horizontalalignment("center")
-                if cell.get_text().get_text() == "<NA>":
+                if (
+                    cell.get_text().get_text() == "<NA>"
+                ):  # TODO: should it be replaced with "-" ?
                     cell.set(visible=False)
                 try:
                     score = float(cell.get_text().get_text())
@@ -300,39 +340,79 @@ def export_df_to_pdf(
     plt.close()
 
 
+def get_date_params(evaluation_dt):
+    current_year = evaluation_dt.year
+    current_month = evaluation_dt.month
+    target_season = current_year + 1
+    if current_month in [1, 2, 3, 4]:
+        next_eval_month = 5
+        next_eval_year = current_year
+    elif current_month in [5, 6, 7]:
+        next_eval_month = 8
+        next_eval_year = current_year
+    else:
+        next_eval_month = 5
+        next_eval_year = current_year + 1
+
+    target_season = str(target_season)
+    this_evaluation_period = evaluation_dt.strftime("%B %Y")
+    next_evaluation_period = datetime(next_eval_year, next_eval_month, 1).strftime(
+        "%B %Y"
+    )
+    return target_season, this_evaluation_period, next_evaluation_period
+
+
 def generate_reports(
-    target_season,
-    evaluation_date,
-    next_evaluation,
+    evaluation_dt,
     target_directory="level_evaluations",
+    athlete_name=None,
 ):
+    target_season, this_evaluation_period, next_evaluation_period = get_date_params(
+        evaluation_dt
+    )
     skill_evaluation_df = read_reference_dataset("skill_evaluation")
     skills_df = read_reference_dataset("skills_v2")
     student_classes_df = read_reference_dataset("student_classes")
 
     level_evaluation_df = process_skill_evaluations(
-        skill_evaluation_df, skills_df, student_classes_df
+        skill_evaluation_df, skills_df, student_classes_df, evaluation_dt
     )
-    athletes = level_evaluation_df["Athlete"].unique()
+    athletes = (
+        level_evaluation_df["Athlete"].unique() if not athlete_name else [athlete_name]
+    )
     target_levels = list(LEVEL_MAPPING.keys())
 
     for athlete in athletes:
+        # Prepare results storage directory
+        _athlete = athlete.lower().replace(" ", "_")
+        dir = os.path.join(
+            target_directory,
+            target_season,
+            _athlete,
+            this_evaluation_period.lower().replace(" ", "_"),
+        )
+        Path(dir).mkdir(parents=True, exist_ok=True)
         for target_level in target_levels:
             report_scores_df = get_report_scores_df(
                 level_evaluation_df, athlete=athlete, target_level=target_level
             )
-            _evaluation_date = evaluation_date.lower().replace(" ", "_")
-            _athlete = athlete.lower().replace(" ", "_")
-            dir = os.path.join(
-                target_directory, target_season, _athlete, _evaluation_date
-            )
-            path = Path(dir)
-            path.mkdir(parents=True, exist_ok=True)
+
+            # Ad hoc unit tests for choice groups
+            # #####################################################
+            # report_scores_df.loc[report_scores_df["Required Skill"] == "side aerial", "Score"] = (
+            #     pd.NA  # pd.NA  # 2
+            # )
+            # report_scores_df.loc[report_scores_df["Required Skill"] == "front flip", "Score"] = (
+            #     pd.NA  # pd.NA  # 2
+            # )
+            # #####################################################
+
+            report_scores_df = get_agg_report_scores_df(report_scores_df.copy())
             df, df_stats = get_mpl_table_df(
                 report_scores_df,
                 target_season=target_season,
-                evaluation_date=evaluation_date,
-                next_evaluation=next_evaluation,
+                this_evaluation_period=this_evaluation_period,
+                next_evaluation_period=next_evaluation_period,
                 target_level=target_level,
             )
             _file_name = f"{_athlete}__{target_season}_{target_level.lower()}.pdf"

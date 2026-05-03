@@ -47,25 +47,15 @@ def behavior_report(clear_cache, debug):
         os.path.dirname(os.path.abspath(__file__)), "level_evaluations"
     ),
 )
-def level_evaluation(target_directory):
-    right_now = datetime.now()
-    current_year = right_now.year
-    current_month = right_now.month
-    target_season = current_year + 1
-    if current_month in [1, 2, 3, 4]:
-        next_eval_month = 5
-        next_eval_year = current_year
-    elif current_month in [5, 6, 7]:
-        next_eval_month = 8
-        next_eval_year = current_year
-    else:
-        next_eval_month = 5
-        next_eval_year = current_year + 1
-
-    target_season = str(target_season)
-    evaluation_date = right_now.strftime("%B %Y")
-    next_evaluation = datetime(next_eval_year, next_eval_month, 1).strftime("%B %Y")
-    generate_reports(target_season, evaluation_date, next_evaluation, target_directory)
+@click.option(
+    "--evaluation-date",
+    default=datetime.now().strftime("%Y-%m-%d"),
+    help="Optional evaluation reference date for generating historical evaluations post hoc",
+)
+@click.option("--athlete-name", default=None, help="Only process one athlete")
+def level_evaluation(target_directory, evaluation_date, athlete_name):
+    evaluation_dt = datetime.strptime(evaluation_date, "%Y-%m-%d")
+    generate_reports(evaluation_dt, target_directory, athlete_name)
 
 
 @cli.command()
